@@ -1582,7 +1582,10 @@ function addHighlight(cfiRange) {
         rendition.annotations.highlight(
             cfiRange,
             {},
-            () => {},
+            // Fires when the highlight mark itself is tapped/clicked --
+            // this is what lets a wrong highlight be removed by tapping
+            // it, no separate "delete" UI needed.
+            () => removeHighlight(cfiRange),
             "zbooks-highlight",
             HIGHLIGHT_STYLES
         );
@@ -1595,6 +1598,42 @@ function addHighlight(cfiRange) {
     }
 
     saveHighlight(currentBookKey, cfiRange);
+
+}
+
+function removeHighlight(cfiRange) {
+
+    if (!rendition || !cfiRange) {
+        return;
+    }
+
+    try {
+        rendition.annotations.remove(cfiRange, "highlight");
+    } catch (error) {
+        console.error("Could not remove highlight:", error);
+    }
+
+    if (!currentBookKey) {
+        return;
+    }
+
+    try {
+
+        const highlights =
+            loadHighlights(currentBookKey).filter(
+                existing => existing !== cfiRange
+            );
+
+        localStorage.setItem(
+            HIGHLIGHT_STORAGE_PREFIX + currentBookKey,
+            JSON.stringify(highlights)
+        );
+
+    } catch (error) {
+
+        console.error("Could not update saved highlights:", error);
+
+    }
 
 }
 
@@ -1754,7 +1793,7 @@ epubInput.addEventListener("change", async () => {
             rendition.annotations.highlight(
                 cfiRange,
                 {},
-                () => {},
+                () => removeHighlight(cfiRange),
                 "zbooks-highlight",
                 HIGHLIGHT_STYLES
             );
