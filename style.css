@@ -426,6 +426,23 @@ body {
     z-index: 100;
 }
 
+.debug-log {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    max-height: 40vh;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.85);
+    color: #7CFC00;
+    font-family: monospace;
+    font-size: 11px;
+    padding: 8px;
+    border-radius: 8px;
+    z-index: 200;
+    white-space: pre-wrap;
+}
+
 /* Dark palette applies automatically from system preference, unless the
    theme toggle button has set an explicit choice (data-theme on <html>),
    in which case that choice always wins in either direction. */

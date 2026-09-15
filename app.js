@@ -83,6 +83,28 @@ const wordPanelClose =
 const toastElement =
     document.getElementById("toast");
 
+const debugLogElement =
+    document.getElementById("debugLog");
+
+// TEMPORARY: appends (never overwrites) so a whole tap's event sequence
+// stays readable on screen. Remove alongside DEBUG_TAP once iOS tapping
+// is confirmed working.
+function logDebug(message) {
+
+    if (!debugLogElement) {
+        return;
+    }
+
+    debugLogElement.hidden = false;
+
+    const line = document.createElement("div");
+    line.textContent = `${new Date().toISOString().slice(11, 23)} ${message}`;
+
+    debugLogElement.appendChild(line);
+    debugLogElement.scrollTop = debugLogElement.scrollHeight;
+
+}
+
 const themeToggleButton =
     document.getElementById("themeToggle");
 
@@ -1067,6 +1089,11 @@ function getWordAtPoint(doc, x, y) {
         !range.startContainer ||
         range.startContainer.nodeType !== Node.TEXT_NODE
     ) {
+        if (typeof DEBUG_TAP !== "undefined" && DEBUG_TAP) {
+            logDebug(
+                `getWordAtPoint: no usable range (range=${!!range}, nodeType=${range && range.startContainer ? range.startContainer.nodeType : "n/a"})`
+            );
+        }
         return null;
     }
 
@@ -1122,9 +1149,20 @@ async function handleWordTap(word) {
 // path for desktop/mouse input. lastTouchTapAt suppresses the
 // synthesized click most browsers still fire after touchend, so a tap
 // does not open the panel twice.
+// TEMPORARY: shows exactly which stage fires (or doesn't) on a device
+// where tapping isn't working, instead of guessing blind. Remove once
+// iOS tapping is confirmed working.
+const DEBUG_TAP = true;
+
 function attachWordTapListener(contents) {
 
     const doc = contents.document;
+
+    if (DEBUG_TAP) {
+        logDebug(
+            `attachWordTapListener called, caretRangeFromPoint=${typeof doc.caretRangeFromPoint}, caretPositionFromPoint=${typeof doc.caretPositionFromPoint}`
+        );
+    }
 
     let touchStartX = 0;
     let touchStartY = 0;
@@ -1138,12 +1176,21 @@ function attachWordTapListener(contents) {
             const touch = event.touches[0];
 
             if (!touch) {
+                if (DEBUG_TAP) {
+                    logDebug("touchstart: no touches[0]");
+                }
                 return;
             }
 
             touchStartX = touch.clientX;
             touchStartY = touch.clientY;
             touchStartTime = Date.now();
+
+            if (DEBUG_TAP) {
+                logDebug(
+                    `touchstart x=${touch.clientX.toFixed(0)} y=${touch.clientY.toFixed(0)}`
+                );
+            }
 
         },
         { passive: true }
@@ -1154,6 +1201,9 @@ function attachWordTapListener(contents) {
         const touch = event.changedTouches[0];
 
         if (!touch) {
+            if (DEBUG_TAP) {
+                logDebug("touchend: no changedTouches[0]");
+            }
             return;
         }
 
@@ -1165,7 +1215,16 @@ function attachWordTapListener(contents) {
 
         const elapsed = Date.now() - touchStartTime;
 
+        if (DEBUG_TAP) {
+            logDebug(
+                `touchend dist=${distance.toFixed(0)} elapsed=${elapsed}`
+            );
+        }
+
         if (distance > 10 || elapsed > 500) {
+            if (DEBUG_TAP) {
+                logDebug("touchend: rejected as swipe/long-press");
+            }
             return;
         }
 
@@ -1173,6 +1232,10 @@ function attachWordTapListener(contents) {
 
         const word =
             getWordAtPoint(doc, touch.clientX, touch.clientY);
+
+        if (DEBUG_TAP) {
+            logDebug(`word="${word}"`);
+        }
 
         if (word) {
             handleWordTap(word);
@@ -1182,7 +1245,14 @@ function attachWordTapListener(contents) {
 
     doc.addEventListener("click", event => {
 
+        if (DEBUG_TAP) {
+            logDebug("click fired");
+        }
+
         if (Date.now() - lastTouchTapAt < 600) {
+            if (DEBUG_TAP) {
+                logDebug("click: suppressed (recent touch tap)");
+            }
             return;
         }
 
