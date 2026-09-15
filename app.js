@@ -494,55 +494,136 @@ function getSenseColor(sense, wordRecord, frequencyRank) {
 }
 
 
-function renderIrregularFormsHtml(irregularForms) {
+// A form chip either plays real ZWords audio (irregular forms, and the
+// base form, which is a normal dataset word) or, for a form with no
+// recorded audio at all (a computed regular past tense), falls back to
+// speechSynthesis -- same fallback already used for brand new words.
+function renderFormChip(form, audioUrl) {
 
-    if (!irregularForms) {
-        return "";
-    }
-
-    // The base form is a normal dataset word, so its audio lives in
-    // audio_map.json; only the inflected past forms live in
-    // irregular_forms_audio_map.json.
-    const renderForm = (form, audioSource) => {
-
-        const audioUrl =
-            ZWordsSharedStatus.buildAudioUrl(audioSource[form]);
-
-        return `
-            <span class="wp-form-chip">
-                ${form}
+    return `
+        <span class="wp-form-chip">
+            ${form}
+            <button
+                class="wp-form-speak"
                 ${
                     audioUrl
-                        ? `<button class="wp-form-speak" data-audio-url="${audioUrl}">🔊</button>`
-                        : ""
+                        ? `data-audio-url="${audioUrl}"`
+                        : `data-speak-word="${form}"`
                 }
-            </span>
+            >🔊</button>
+        </span>
+    `;
+
+}
+
+
+// Regular verbs have no entry in the irregular-verbs dataset (there is
+// nothing irregular to record), so their past simple/participle is
+// generated with the ordinary English spelling rules -- covers the
+// common cases (stop/stopped, try/tried, like/liked, walk/walked,
+// open/opened). Consonant doubling only applies to a true one-syllable
+// CVC word (stop, plan) -- approximated by counting vowel groups, which
+// is what keeps two-syllable words like "open" or "enter" from wrongly
+// doubling into "openned"/"enterred". Words like "admit"/"refer" (also
+// double, but because the STRESS falls on the last syllable, which
+// vowel-counting alone can't detect) are a known remaining gap.
+function computeRegularPastForm(base) {
+
+    const lower = base.toLowerCase();
+
+    if (/[^aeiou]y$/i.test(lower)) {
+        return base.slice(0, -1) + "ied";
+    }
+
+    if (/e$/i.test(lower)) {
+        return base + "d";
+    }
+
+    const vowelGroups = lower.match(/[aeiou]+/g) || [];
+
+    const isMonosyllabicCvc =
+        vowelGroups.length === 1 &&
+        /[^aeiouwxy][aeiou][^aeiouwxy]$/i.test(lower);
+
+    if (isMonosyllabicCvc) {
+        return base + base.slice(-1) + "ed";
+    }
+
+    return base + "ed";
+
+}
+
+
+function renderVerbFormsHtml(word, irregularForms) {
+
+    if (irregularForms) {
+
+        return `
+            <div class="wp-row wp-irregular-forms">
+                <span class="wp-label">Verb forms</span>
+                <div class="wp-form-group">
+                    <span class="wp-form-group-label">Base</span>
+                    ${
+                        renderFormChip(
+                            irregularForms.base_form,
+                            ZWordsSharedStatus.buildAudioUrl(
+                                audioMap[irregularForms.base_form]
+                            )
+                        )
+                    }
+                </div>
+                <div class="wp-form-group">
+                    <span class="wp-form-group-label">Past simple</span>
+                    ${
+                        irregularForms.past_simple
+                            .map(form =>
+                                renderFormChip(
+                                    form,
+                                    ZWordsSharedStatus.buildAudioUrl(
+                                        irregularAudioMap[form]
+                                    )
+                                )
+                            )
+                            .join("")
+                    }
+                </div>
+                <div class="wp-form-group">
+                    <span class="wp-form-group-label">Past participle</span>
+                    ${
+                        irregularForms.past_participle
+                            .map(form =>
+                                renderFormChip(
+                                    form,
+                                    ZWordsSharedStatus.buildAudioUrl(
+                                        irregularAudioMap[form]
+                                    )
+                                )
+                            )
+                            .join("")
+                    }
+                </div>
+            </div>
         `;
 
-    };
+    }
+
+    const pastForm = computeRegularPastForm(word);
 
     return `
         <div class="wp-row wp-irregular-forms">
-            <span class="wp-label">Verb forms</span>
+            <span class="wp-label">Verb forms (regular)</span>
             <div class="wp-form-group">
                 <span class="wp-form-group-label">Base</span>
-                ${renderForm(irregularForms.base_form, audioMap)}
-            </div>
-            <div class="wp-form-group">
-                <span class="wp-form-group-label">Past simple</span>
                 ${
-                    irregularForms.past_simple
-                        .map(form => renderForm(form, irregularAudioMap))
-                        .join("")
+                    renderFormChip(
+                        word,
+                        ZWordsSharedStatus.buildAudioUrl(audioMap[word])
+                    )
                 }
             </div>
             <div class="wp-form-group">
-                <span class="wp-form-group-label">Past participle</span>
-                ${
-                    irregularForms.past_participle
-                        .map(form => renderForm(form, irregularAudioMap))
-                        .join("")
-                }
+                <span class="wp-form-group-label">Past simple / participle</span>
+                ${renderFormChip(pastForm, null)}
             </div>
         </div>
     `;
@@ -550,7 +631,7 @@ function renderIrregularFormsHtml(irregularForms) {
 }
 
 
-function renderSenseHtml(sense, index, wordRecord, frequencyRank) {
+function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregularForms) {
 
     const color = getSenseColor(sense, wordRecord, frequencyRank);
 
@@ -585,6 +666,11 @@ function renderSenseHtml(sense, index, wordRecord, frequencyRank) {
             <div class="wp-row wp-pronunciation-row">
                 <span>${sense.pronunciation}</span>
             </div>
+            ${
+                sense.part_of_speech.toLowerCase() === "verb"
+                    ? renderVerbFormsHtml(word, irregularForms)
+                    : ""
+            }
             <div class="wp-row">
                 <span class="wp-label">Definition</span>
                 ${sense.definition}
@@ -642,7 +728,9 @@ function renderFoundWordPanel(result) {
                     sense,
                     index,
                     wordRecord,
-                    result.frequencyRank
+                    result.frequencyRank,
+                    result.word,
+                    result.irregularForms
                 )
             )
             .join("");
@@ -662,7 +750,6 @@ function renderFoundWordPanel(result) {
             }
         </p>
         ${surfaceNoteHtml}
-        ${renderIrregularFormsHtml(result.irregularForms)}
         ${multiSenseNoteHtml}
         ${sensesHtml}
     `);
@@ -671,7 +758,13 @@ function renderFoundWordPanel(result) {
         .querySelectorAll(".wp-form-speak")
         .forEach(button => {
             button.addEventListener("click", () => {
-                playAudioUrl(button.dataset.audioUrl);
+
+                if (button.dataset.audioUrl) {
+                    playAudioUrl(button.dataset.audioUrl);
+                } else if (button.dataset.speakWord) {
+                    speakWord(button.dataset.speakWord);
+                }
+
             });
         });
 
