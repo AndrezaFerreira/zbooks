@@ -19,9 +19,6 @@ const WORD_INDEX_URL =
 const IRREGULAR_VERBS_URL =
     `${ZWORDS_BASE_URL}data/04_cards_irregular_verbs.json?v=1`;
 
-const MEDIA_BASE_URL =
-    ZWordsSharedStatus.MEDIA_BASE_URL;
-
 
 // ============================================================
 // STATE
@@ -77,6 +74,103 @@ const wordPanelClose =
 
 const toastElement =
     document.getElementById("toast");
+
+const themeToggleButton =
+    document.getElementById("themeToggle");
+
+const fontSizeUpButton =
+    document.getElementById("fontSizeUp");
+
+const fontSizeDownButton =
+    document.getElementById("fontSizeDown");
+
+
+// ============================================================
+// THEME (light/dark) -- manual override on top of prefers-color-scheme
+// ============================================================
+
+const THEME_STORAGE_KEY = "zbooks_theme";
+
+function getEffectiveTheme() {
+
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+
+    if (stored === "light" || stored === "dark") {
+        return stored;
+    }
+
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+
+}
+
+function applyTheme(theme) {
+
+    if (theme) {
+        document.documentElement.dataset.theme = theme;
+    } else {
+        delete document.documentElement.dataset.theme;
+    }
+
+    themeToggleButton.textContent =
+        getEffectiveTheme() === "dark" ? "☀️" : "🌙";
+
+}
+
+applyTheme(localStorage.getItem(THEME_STORAGE_KEY));
+
+themeToggleButton.addEventListener("click", () => {
+
+    const next =
+        getEffectiveTheme() === "dark" ? "light" : "dark";
+
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+
+    applyTheme(next);
+
+});
+
+
+// ============================================================
+// READER FONT SIZE
+// ============================================================
+
+const FONT_SIZE_STORAGE_KEY = "zbooks_font_scale";
+const FONT_SIZE_MIN = 70;
+const FONT_SIZE_MAX = 200;
+const FONT_SIZE_STEP = 10;
+
+let readerFontScale =
+    parseInt(localStorage.getItem(FONT_SIZE_STORAGE_KEY), 10) || 100;
+
+function applyReaderFontScale() {
+
+    if (rendition) {
+        rendition.themes.fontSize(`${readerFontScale}%`);
+    }
+
+    localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(readerFontScale));
+
+}
+
+fontSizeUpButton.addEventListener("click", () => {
+
+    readerFontScale =
+        Math.min(FONT_SIZE_MAX, readerFontScale + FONT_SIZE_STEP);
+
+    applyReaderFontScale();
+
+});
+
+fontSizeDownButton.addEventListener("click", () => {
+
+    readerFontScale =
+        Math.max(FONT_SIZE_MIN, readerFontScale - FONT_SIZE_STEP);
+
+    applyReaderFontScale();
+
+});
 
 
 // ============================================================
@@ -372,9 +466,12 @@ function renderFoundWordPanel(result) {
             result.frequencyRank
         );
 
+    const imageUrl =
+        ZWordsSharedStatus.buildImageUrl(result.image);
+
     const imageHtml =
-        result.image
-            ? `<img class="wp-image" src="${MEDIA_BASE_URL}${result.image}" alt="">`
+        imageUrl
+            ? `<img class="wp-image" src="${imageUrl}" alt="">`
             : "";
 
     const surfaceNoteHtml =
@@ -740,6 +837,8 @@ epubInput.addEventListener("change", async () => {
     rendition.hooks.content.register(attachWordTapListener);
 
     await rendition.display();
+
+    applyReaderFontScale();
 
     emptyState.hidden = true;
     readerArea.hidden = false;

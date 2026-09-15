@@ -34,16 +34,29 @@
                 <span class="topbar-title">ZBooks</span>
             </div>
 
-            <label class="open-book-button" for="epubInput">
-                Open EPUB
-            </label>
+            <div class="topbar-controls">
 
-            <input
-                type="file"
-                id="epubInput"
-                accept=".epub"
-                hidden
-            >
+                <div class="font-size-controls">
+                    <button id="fontSizeDown" type="button" title="Smaller text">A-</button>
+                    <button id="fontSizeUp" type="button" title="Larger text">A+</button>
+                </div>
+
+                <button id="themeToggle" class="icon-button" type="button" title="Toggle light/dark theme">
+                    🌙
+                </button>
+
+                <label class="open-book-button" for="epubInput">
+                    Open EPUB
+                </label>
+
+                <input
+                    type="file"
+                    id="epubInput"
+                    accept=".epub"
+                    hidden
+                >
+
+            </div>
 
         </header>
 

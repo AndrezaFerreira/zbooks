@@ -84,6 +84,50 @@ body {
     color: #fff;
     font-size: 14px;
     cursor: pointer;
+    white-space: nowrap;
+}
+
+.topbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.font-size-controls {
+    display: flex;
+    border: 1px solid var(--zb-border);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.font-size-controls button {
+    border: none;
+    background: var(--zb-bg);
+    color: var(--zb-text);
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.font-size-controls button:first-child {
+    border-right: 1px solid var(--zb-border);
+}
+
+.icon-button {
+    border: 1px solid var(--zb-border);
+    background: var(--zb-bg);
+    color: var(--zb-text);
+    border-radius: 999px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .empty-state {
@@ -302,9 +346,13 @@ body {
     z-index: 100;
 }
 
+/* Dark palette applies automatically from system preference, unless the
+   theme toggle button has set an explicit choice (data-theme on <html>),
+   in which case that choice always wins in either direction. */
+
 @media (prefers-color-scheme: dark) {
 
-    :root {
+    :root:not([data-theme="light"]) {
         --zb-bg: #16121f;
         --zb-surface: #211c2e;
         --zb-text: #ece9f2;
@@ -327,4 +375,27 @@ body {
         --zb-none-text: #a49bb8;
     }
 
+}
+
+:root[data-theme="dark"] {
+    --zb-bg: #16121f;
+    --zb-surface: #211c2e;
+    --zb-text: #ece9f2;
+    --zb-muted: #a49bb8;
+    --zb-border: #352c46;
+
+    --zb-known-bg: #203a27;
+    --zb-known-text: #8fd6a0;
+
+    --zb-learning-bg: #402c17;
+    --zb-learning-text: #eab377;
+
+    --zb-rare-bg: #322546;
+    --zb-rare-text: #c6aeee;
+
+    --zb-seen-bg: #3a331a;
+    --zb-seen-text: #e3cd7c;
+
+    --zb-none-bg: #2a2438;
+    --zb-none-text: #a49bb8;
 }
