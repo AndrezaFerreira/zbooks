@@ -69,7 +69,9 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 10px 12px;
     background: var(--zb-surface);
     border-bottom: 1px solid var(--zb-border);
 }
@@ -79,6 +81,7 @@ body {
     align-items: center;
     gap: 8px;
     font-weight: 600;
+    flex-shrink: 0;
 }
 
 .topbar-logo {
@@ -91,14 +94,16 @@ body {
     background: var(--zb-accent);
     color: #fff;
     font-size: 14px;
+    flex-shrink: 0;
 }
 
 .open-book-button {
-    padding: 8px 14px;
+    flex-shrink: 0;
+    padding: 7px 12px;
     border-radius: 999px;
     background: var(--zb-accent);
     color: #fff;
-    font-size: 14px;
+    font-size: 13px;
     cursor: pointer;
     white-space: nowrap;
 }
@@ -106,13 +111,15 @@ body {
 .topbar-controls {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: 6px;
+    flex-wrap: nowrap;
     justify-content: flex-end;
+    min-width: 0;
 }
 
 .font-size-controls {
     display: flex;
+    flex-shrink: 0;
     border: 1px solid var(--zb-border);
     border-radius: 999px;
     overflow: hidden;
@@ -122,8 +129,8 @@ body {
     border: none;
     background: var(--zb-bg);
     color: var(--zb-text);
-    padding: 8px 12px;
-    font-size: 13px;
+    padding: 6px 10px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
 }
@@ -133,17 +140,55 @@ body {
 }
 
 .icon-button {
+    flex-shrink: 0;
     border: 1px solid var(--zb-border);
     background: var(--zb-bg);
     color: var(--zb-text);
     border-radius: 999px;
-    width: 36px;
-    height: 36px;
-    font-size: 16px;
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Everything must stay on one line -- on a narrow phone there isn't
+   room for the "ZBooks" wordmark alongside four controls and the Open
+   EPUB button, so it's the first thing to go; the logo mark alone
+   still identifies the app. */
+@media (max-width: 480px) {
+
+    .topbar-title {
+        display: none;
+    }
+
+    .topbar {
+        padding: 8px 10px;
+        gap: 6px;
+    }
+
+    .topbar-controls {
+        gap: 4px;
+    }
+
+    .icon-button {
+        width: 30px;
+        height: 30px;
+        font-size: 13px;
+    }
+
+    .font-size-controls button {
+        padding: 5px 7px;
+        font-size: 11px;
+    }
+
+    .open-book-button {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
 }
 
 .empty-state {
