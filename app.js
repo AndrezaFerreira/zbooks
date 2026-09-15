@@ -885,9 +885,30 @@ function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregula
     const imageUrl =
         ZWordsSharedStatus.buildImageUrl(sense.image);
 
+    // Same badge as ZWords' own flashcards -- frequencyRank is word-
+    // level (null for phrases/phrasal verbs, which don't track it), so
+    // it naturally only shows for Words/Irregular Verbs senses.
+    const frequencyRankBadgeHtml =
+        imageUrl && Number.isInteger(frequencyRank)
+            ? `
+                <div
+                    class="frequency-rank-badge"
+                    title="Frequency rank among 34,002 words"
+                    aria-label="Frequency rank ${frequencyRank.toLocaleString("en-US")}"
+                >
+                    #${frequencyRank.toLocaleString("en-US")}
+                </div>
+            `
+            : "";
+
     const imageHtml =
         imageUrl
-            ? `<img class="wp-image" src="${imageUrl}" alt="">`
+            ? `
+                <div class="wp-image-wrap">
+                    <img class="wp-image" src="${imageUrl}" alt="">
+                    ${frequencyRankBadgeHtml}
+                </div>
+            `
             : "";
 
     const senseStatus =

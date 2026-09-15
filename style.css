@@ -519,13 +519,39 @@ body {
     color: var(--zb-none-text);
 }
 
-.wp-image {
+.wp-image-wrap {
+    position: relative;
     width: 100%;
     max-width: 260px;
-    border-radius: 12px;
     margin: 4px 0 14px;
+}
+
+.wp-image {
+    width: 100%;
+    border-radius: 12px;
     display: block;
     background: var(--zb-bg);
+}
+
+/* Same badge as ZWords' own flashcards -- deliberately not theme-aware
+   (fixed light pill + dark text), since it sits on top of a photo of
+   varying colors either way, not on the app's own background. */
+.frequency-rank-badge {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 10;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.88);
+    color: #491258;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 12px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.10);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    pointer-events: none;
 }
 
 .wp-row {
