@@ -1,0 +1,321 @@
+:root {
+    --zb-bg: #f7f4fb;
+    --zb-surface: #ffffff;
+    --zb-text: #2a2438;
+    --zb-muted: #746e85;
+    --zb-border: #e4dff0;
+    --zb-accent: #6d4fc2;
+
+    --zb-known-bg: #e3f3e6;
+    --zb-known-text: #2f6b3d;
+
+    --zb-learning-bg: #fdead9;
+    --zb-learning-text: #9a5b1d;
+
+    --zb-rare-bg: #ece3f5;
+    --zb-rare-text: #5b3d8a;
+
+    --zb-seen-bg: #fbf5da;
+    --zb-seen-text: #8a6d1d;
+
+    --zb-none-bg: #eeecf3;
+    --zb-none-text: #746e85;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        sans-serif;
+    background: var(--zb-bg);
+    color: var(--zb-text);
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--zb-surface);
+    border-bottom: 1px solid var(--zb-border);
+}
+
+.topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.topbar-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--zb-accent);
+    color: #fff;
+    font-size: 14px;
+}
+
+.open-book-button {
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--zb-accent);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    color: var(--zb-muted);
+}
+
+.reader-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.viewer {
+    flex: 1;
+    min-height: 0;
+    background: var(--zb-surface);
+}
+
+.reader-nav {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--zb-surface);
+    border-top: 1px solid var(--zb-border);
+}
+
+.reader-nav button {
+    padding: 8px 20px;
+    border: 1px solid var(--zb-border);
+    border-radius: 8px;
+    background: var(--zb-bg);
+    font-size: 16px;
+    color: var(--zb-text);
+}
+
+.word-panel-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 15, 35, 0.35);
+    display: flex;
+    align-items: flex-end;
+    z-index: 50;
+}
+
+.word-panel {
+    position: relative;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    background: var(--zb-surface);
+    border-radius: 16px 16px 0 0;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+}
+
+.word-panel-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    border: none;
+    background: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--zb-muted);
+    cursor: pointer;
+}
+
+.wp-word {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 2px;
+}
+
+.wp-surface-note {
+    font-size: 13px;
+    color: var(--zb-muted);
+    margin: 0 0 10px;
+}
+
+.wp-status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.wp-status-known {
+    background: var(--zb-known-bg);
+    color: var(--zb-known-text);
+}
+
+.wp-status-learning {
+    background: var(--zb-learning-bg);
+    color: var(--zb-learning-text);
+}
+
+.wp-status-rare {
+    background: var(--zb-rare-bg);
+    color: var(--zb-rare-text);
+}
+
+.wp-status-seen {
+    background: var(--zb-seen-bg);
+    color: var(--zb-seen-text);
+}
+
+.wp-status-none {
+    background: var(--zb-none-bg);
+    color: var(--zb-none-text);
+}
+
+.wp-image {
+    width: 100%;
+    max-width: 260px;
+    border-radius: 12px;
+    margin: 4px 0 14px;
+    display: block;
+    background: var(--zb-bg);
+}
+
+.wp-row {
+    margin: 0 0 10px;
+    line-height: 1.4;
+}
+
+.wp-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--zb-muted);
+    margin-bottom: 2px;
+}
+
+.wp-pronunciation-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wp-speak-button {
+    border: 1px solid var(--zb-border);
+    background: var(--zb-bg);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.wp-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
+.wp-action-button {
+    flex: 1;
+    min-width: 130px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--zb-border);
+    background: var(--zb-bg);
+    font-size: 14px;
+    color: var(--zb-text);
+    cursor: pointer;
+}
+
+.wp-action-button.active {
+    border-color: transparent;
+}
+
+.wp-action-button.active.learning {
+    background: var(--zb-learning-bg);
+    color: var(--zb-learning-text);
+}
+
+.wp-action-button.active.known {
+    background: var(--zb-known-bg);
+    color: var(--zb-known-text);
+}
+
+.wp-new-word-note {
+    background: var(--zb-none-bg);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--zb-text);
+    margin-bottom: 12px;
+}
+
+.wp-pending-note {
+    font-size: 13px;
+    color: var(--zb-known-text);
+    margin-top: 10px;
+}
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    background: #2a2438;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    z-index: 100;
+}
+
+@media (prefers-color-scheme: dark) {
+
+    :root {
+        --zb-bg: #16121f;
+        --zb-surface: #211c2e;
+        --zb-text: #ece9f2;
+        --zb-muted: #a49bb8;
+        --zb-border: #352c46;
+
+        --zb-known-bg: #203a27;
+        --zb-known-text: #8fd6a0;
+
+        --zb-learning-bg: #402c17;
+        --zb-learning-text: #eab377;
+
+        --zb-rare-bg: #322546;
+        --zb-rare-text: #c6aeee;
+
+        --zb-seen-bg: #3a331a;
+        --zb-seen-text: #e3cd7c;
+
+        --zb-none-bg: #2a2438;
+        --zb-none-text: #a49bb8;
+    }
+
+}

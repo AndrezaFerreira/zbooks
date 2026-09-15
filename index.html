@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
+
+    <meta
+        name="theme-color"
+        content="#f7f4fb"
+    >
+
+    <title>ZBooks</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css?v=1"
+    >
+</head>
+
+
+<body>
+
+    <main class="app">
+
+        <header class="topbar">
+
+            <div class="topbar-brand">
+                <span class="topbar-logo">Z</span>
+                <span class="topbar-title">ZBooks</span>
+            </div>
+
+            <label class="open-book-button" for="epubInput">
+                Open EPUB
+            </label>
+
+            <input
+                type="file"
+                id="epubInput"
+                accept=".epub"
+                hidden
+            >
+
+        </header>
+
+
+        <section id="emptyState" class="empty-state">
+
+            <p>
+                Choose an EPUB file to start reading. Tap any word
+                in the text to look it up in ZWords.
+            </p>
+
+        </section>
+
+
+        <section id="readerArea" class="reader-area" hidden>
+
+            <div id="viewer" class="viewer"></div>
+
+            <div class="reader-nav">
+                <button id="prevPage" type="button">&larr;</button>
+                <button id="nextPage" type="button">&rarr;</button>
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <div id="wordPanelOverlay" class="word-panel-overlay" hidden>
+
+        <div id="wordPanel" class="word-panel">
+
+            <button id="wordPanelClose" class="word-panel-close" type="button">
+                &times;
+            </button>
+
+            <div id="wordPanelContent"></div>
+
+        </div>
+
+    </div>
+
+
+    <div id="toast" class="toast" hidden></div>
+
+
+    <script src="https://andrezaferreira.github.io/zwords/shared/word-status.js"></script>
+
+    <script src="libs/lemma-candidates.min.js"></script>
+    <script src="libs/epub.min.js"></script>
+
+    <script src="app.js?v=1"></script>
+
+</body>
+
+</html>
