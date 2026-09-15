@@ -303,6 +303,51 @@ body {
     cursor: pointer;
 }
 
+.toc-panel {
+    max-height: 70vh;
+}
+
+.toc-panel-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 12px;
+}
+
+.toc-list,
+.toc-sublist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.toc-sublist {
+    padding-left: 16px;
+}
+
+.toc-item {
+    border-bottom: 1px solid var(--zb-border);
+}
+
+.toc-item:last-child {
+    border-bottom: none;
+}
+
+.toc-link {
+    display: block;
+    width: 100%;
+    padding: 12px 4px;
+    border: none;
+    background: none;
+    color: var(--zb-text);
+    font-size: 15px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.toc-link:active {
+    background: var(--zb-bg);
+}
+
 .wp-word {
     font-size: 22px;
     font-weight: 700;

@@ -97,6 +97,21 @@ const wordSearchInput =
 const wordSearchSuggestions =
     document.getElementById("wordSearchSuggestions");
 
+const tocButton =
+    document.getElementById("tocButton");
+
+const tocOverlay =
+    document.getElementById("tocOverlay");
+
+const tocPanel =
+    document.getElementById("tocPanel");
+
+const tocList =
+    document.getElementById("tocList");
+
+const tocPanelClose =
+    document.getElementById("tocPanelClose");
+
 const wordPanelOverlay =
     document.getElementById("wordPanelOverlay");
 
@@ -1379,6 +1394,91 @@ function loadReadingPosition(bookKey) {
 
 
 // ============================================================
+// TABLE OF CONTENTS
+// ============================================================
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+}
+
+function renderTocItems(items) {
+
+    return items
+        .map(item => {
+
+            const children =
+                item.subitems && item.subitems.length
+                    ? `<ul class="toc-sublist">${renderTocItems(item.subitems)}</ul>`
+                    : "";
+
+            return `
+                <li class="toc-item">
+                    <button class="toc-link" data-href="${escapeHtml(item.href)}">
+                        ${escapeHtml((item.label || "").trim())}
+                    </button>
+                    ${children}
+                </li>
+            `;
+
+        })
+        .join("");
+
+}
+
+function openToc() {
+
+    const items =
+        book &&
+        book.navigation &&
+        book.navigation.toc;
+
+    if (!items || !items.length) {
+        return;
+    }
+
+    tocList.innerHTML = renderTocItems(items);
+    tocOverlay.hidden = false;
+    tocPanel.scrollTop = 0;
+
+    tocList
+        .querySelectorAll(".toc-link")
+        .forEach(link => {
+
+            link.addEventListener("click", () => {
+
+                const href = link.dataset.href;
+
+                tocOverlay.hidden = true;
+
+                if (rendition && href) {
+                    rendition.display(href);
+                }
+
+            });
+
+        });
+
+}
+
+function closeToc() {
+    tocOverlay.hidden = true;
+}
+
+tocButton.addEventListener("click", openToc);
+tocPanelClose.addEventListener("click", closeToc);
+
+tocOverlay.addEventListener("click", event => {
+    if (event.target === tocOverlay) {
+        closeToc();
+    }
+});
+
+
+// ============================================================
 // EPUB LOADING
 // ============================================================
 
@@ -1431,6 +1531,8 @@ epubInput.addEventListener("change", async () => {
 
     emptyState.hidden = true;
     readerArea.hidden = false;
+    tocButton.hidden =
+        !(book.navigation && book.navigation.toc && book.navigation.toc.length);
 
 });
 

@@ -33,7 +33,7 @@
 
     <link
         rel="stylesheet"
-        href="style.css?v=9"
+        href="style.css?v=10"
     >
 </head>
 
@@ -58,6 +58,10 @@
 
                 <button id="themeToggle" class="icon-button" type="button" title="Toggle light/dark theme">
                     🌙
+                </button>
+
+                <button id="tocButton" class="icon-button" type="button" title="Chapters" hidden>
+                    ☰
                 </button>
 
                 <label class="open-book-button" for="epubInput">
@@ -146,6 +150,23 @@
     </div>
 
 
+    <div id="tocOverlay" class="word-panel-overlay" hidden>
+
+        <div id="tocPanel" class="word-panel toc-panel">
+
+            <button id="tocPanelClose" class="word-panel-close" type="button">
+                &times;
+            </button>
+
+            <p class="toc-panel-title">Chapters</p>
+
+            <ul id="tocList" class="toc-list"></ul>
+
+        </div>
+
+    </div>
+
+
     <div id="toast" class="toast" hidden></div>
 
     <div id="debugLog" class="debug-log" hidden></div>
@@ -157,7 +178,7 @@
     <script src="libs/jszip.min.js"></script>
     <script src="libs/epub.min.js"></script>
 
-    <script src="app.js?v=16"></script>
+    <script src="app.js?v=17"></script>
 
 </body>
 
