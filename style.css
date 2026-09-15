@@ -257,7 +257,9 @@ body {
     border-radius: 8px;
     background: var(--zb-bg);
     color: var(--zb-text);
-    font-size: 14px;
+    /* iOS Safari auto-zooms the page on focus for any input under
+       16px -- this is the threshold, not a design choice. */
+    font-size: 16px;
 }
 
 .word-search-button {

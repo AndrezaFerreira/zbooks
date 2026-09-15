@@ -160,34 +160,38 @@ function registerReaderThemes(targetRendition) {
         }
     });
 
+    // Dark navy background with muted grayish-white text, matching a
+    // reference (Zotero's PDF dark mode) -- not pure white/pure black,
+    // which is harsher to read for long stretches.
     targetRendition.themes.register("zbooks-dark", {
         "body": {
-            "background": "#191625 !important",
-            "color": "#e9e6f2 !important"
+            "background": "#242832 !important",
+            "color": "#c9cdd6 !important"
         },
         "a": {
-            "color": "#b9a4f2 !important"
+            "color": "#9db4e8 !important"
         }
     });
 
 }
 
-// TEMPORARILY DISABLED: this made the whole book render blank (still
-// under investigation) instead of just fixing dark-mode contrast.
-// Restoring a readable book takes priority; re-enable once the actual
-// cause is confirmed and fixed.
 function applyReaderTheme() {
 
-    return;
-
-    // eslint-disable-next-line no-unreachable
     if (!rendition) {
         return;
     }
 
-    rendition.themes.select(
-        getEffectiveTheme() === "dark" ? "zbooks-dark" : "zbooks-light"
-    );
+    try {
+
+        rendition.themes.select(
+            getEffectiveTheme() === "dark" ? "zbooks-dark" : "zbooks-light"
+        );
+
+    } catch (error) {
+
+        console.error("Could not apply reader theme:", error);
+
+    }
 
 }
 
@@ -563,10 +567,6 @@ function getSenseColor(sense, wordRecord, frequencyRank) {
         frequencyRank > ZWordsSharedStatus.RARE_RANK_THRESHOLD
     ) {
         return "rare";
-    }
-
-    if (wordRecord && wordRecord.lookupCount > 0) {
-        return "seen";
     }
 
     return "none";
