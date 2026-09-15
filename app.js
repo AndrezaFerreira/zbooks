@@ -1146,66 +1146,61 @@ async function handleWordTap(word) {
 }
 
 
-// iOS Safari: epub.js registers its own touch handlers on the content
-// iframe for swipe-to-turn-page, and on iOS that can swallow the
-// synthesized "click" a plain tap would otherwise produce -- tapping a
-// word did nothing there, even though the exact same code worked with
-// mouse clicks. Handling touchend directly (only when it looks like a
-// tap, not the start of a swipe: little movement, short duration) is
-// what actually fires reliably on iOS; the click listener stays as the
-// path for desktop/mouse input. lastTouchTapAt suppresses the
-// synthesized click most browsers still fire after touchend, so a tap
-// does not open the panel twice.
-// TEMPORARY: shows exactly which stage fires (or doesn't) on a device
-// where tapping isn't working, instead of guessing blind. Remove once
-// iOS tapping is confirmed working.
+// iOS Safari: paginated flow uses epub.js's built-in "snap" manager,
+// which runs a scroll-settle animation on EVERY touchend (even a
+// stationary tap, not just a real swipe) and that redisplays/recreates
+// the content view -- so listeners attached directly to a specific
+// contents.document (via rendition.hooks.content.register) can end up
+// orphaned on a document epub.js has already torn down by the time the
+// tap finishes, which is what made every iOS tap silently do nothing
+// even though the exact same code worked with a desktop mouse click.
+// rendition.on(...) instead binds to the Rendition object itself, which
+// persists across those internal view reloads -- epub.js proxies each
+// content document's native events up to it (Contents.addEventListeners
+// -> Rendition.passEvents), so this reaches the same underlying taps
+// through a path that survives the recreation.
+// TEMPORARY: DEBUG_TAP logs shows exactly which stage fires (or
+// doesn't) on a device where tapping isn't working, instead of
+// guessing blind. Remove once iOS tapping is confirmed working.
 const DEBUG_TAP = true;
 
-function attachWordTapListener(contents) {
+let tapTouchStartX = 0;
+let tapTouchStartY = 0;
+let tapTouchStartTime = 0;
+let lastTouchTapAt = 0;
 
-    const doc = contents.document;
+function attachWordTapListeners(targetRendition) {
 
     if (DEBUG_TAP) {
-        logDebug(
-            `attachWordTapListener called, caretRangeFromPoint=${typeof doc.caretRangeFromPoint}, caretPositionFromPoint=${typeof doc.caretPositionFromPoint}`
-        );
+        logDebug("attachWordTapListeners: wiring rendition.on(...)");
     }
 
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchStartTime = 0;
-    let lastTouchTapAt = 0;
+    targetRendition.on("touchstart", (event, contents) => {
 
-    doc.addEventListener(
-        "touchstart",
-        event => {
+        const touch = event.touches && event.touches[0];
 
-            const touch = event.touches[0];
-
-            if (!touch) {
-                if (DEBUG_TAP) {
-                    logDebug("touchstart: no touches[0]");
-                }
-                return;
-            }
-
-            touchStartX = touch.clientX;
-            touchStartY = touch.clientY;
-            touchStartTime = Date.now();
-
+        if (!touch) {
             if (DEBUG_TAP) {
-                logDebug(
-                    `touchstart x=${touch.clientX.toFixed(0)} y=${touch.clientY.toFixed(0)}`
-                );
+                logDebug("touchstart: no touches[0]");
             }
+            return;
+        }
 
-        },
-        { passive: true }
-    );
+        tapTouchStartX = touch.clientX;
+        tapTouchStartY = touch.clientY;
+        tapTouchStartTime = Date.now();
 
-    doc.addEventListener("touchend", event => {
+        if (DEBUG_TAP) {
+            logDebug(
+                `touchstart x=${touch.clientX.toFixed(0)} y=${touch.clientY.toFixed(0)}`
+            );
+        }
 
-        const touch = event.changedTouches[0];
+    });
+
+    targetRendition.on("touchend", (event, contents) => {
+
+        const touch = event.changedTouches && event.changedTouches[0];
 
         if (!touch) {
             if (DEBUG_TAP) {
@@ -1216,11 +1211,11 @@ function attachWordTapListener(contents) {
 
         const distance =
             Math.hypot(
-                touch.clientX - touchStartX,
-                touch.clientY - touchStartY
+                touch.clientX - tapTouchStartX,
+                touch.clientY - tapTouchStartY
             );
 
-        const elapsed = Date.now() - touchStartTime;
+        const elapsed = Date.now() - tapTouchStartTime;
 
         if (DEBUG_TAP) {
             logDebug(
@@ -1238,7 +1233,7 @@ function attachWordTapListener(contents) {
         lastTouchTapAt = Date.now();
 
         const word =
-            getWordAtPoint(doc, touch.clientX, touch.clientY);
+            getWordAtPoint(contents.document, touch.clientX, touch.clientY);
 
         if (DEBUG_TAP) {
             logDebug(`word="${word}"`);
@@ -1250,7 +1245,7 @@ function attachWordTapListener(contents) {
 
     });
 
-    doc.addEventListener("click", event => {
+    targetRendition.on("click", (event, contents) => {
 
         if (DEBUG_TAP) {
             logDebug("click fired");
@@ -1264,7 +1259,7 @@ function attachWordTapListener(contents) {
         }
 
         const word =
-            getWordAtPoint(doc, event.clientX, event.clientY);
+            getWordAtPoint(contents.document, event.clientX, event.clientY);
 
         if (word) {
             handleWordTap(word);
@@ -1301,7 +1296,7 @@ epubInput.addEventListener("change", async () => {
         flow: "paginated"
     });
 
-    rendition.hooks.content.register(attachWordTapListener);
+    attachWordTapListeners(rendition);
 
     registerReaderThemes(rendition);
 
