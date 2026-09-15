@@ -113,6 +113,46 @@ function getEffectiveTheme() {
 
 }
 
+// Most EPUBs don't set their own background/text color (they just
+// inherit the browser default), so when the app shell goes dark the
+// content iframe's own background can stay transparent while its text
+// stays near-black -- dark-on-dark, unreadable. epub.js's themes API
+// injects real CSS into each content iframe it renders, which is what
+// actually fixes contrast (toggling only the app chrome's CSS variables
+// cannot reach inside that iframe).
+function registerReaderThemes(targetRendition) {
+
+    targetRendition.themes.register("zbooks-light", {
+        "body": {
+            "background": "#ffffff !important",
+            "color": "#1a1a1a !important"
+        }
+    });
+
+    targetRendition.themes.register("zbooks-dark", {
+        "body": {
+            "background": "#191625 !important",
+            "color": "#e9e6f2 !important"
+        },
+        "a": {
+            "color": "#b9a4f2 !important"
+        }
+    });
+
+}
+
+function applyReaderTheme() {
+
+    if (!rendition) {
+        return;
+    }
+
+    rendition.themes.select(
+        getEffectiveTheme() === "dark" ? "zbooks-dark" : "zbooks-light"
+    );
+
+}
+
 function applyTheme(theme) {
 
     if (theme) {
@@ -123,6 +163,8 @@ function applyTheme(theme) {
 
     themeToggleButton.textContent =
         getEffectiveTheme() === "dark" ? "☀️" : "🌙";
+
+    applyReaderTheme();
 
 }
 
@@ -631,7 +673,7 @@ function renderVerbFormsHtml(word, irregularForms) {
 }
 
 
-function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregularForms) {
+function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregularForms, wordAudioUrl) {
 
     const color = getSenseColor(sense, wordRecord, frequencyRank);
 
@@ -665,6 +707,11 @@ function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregula
             ${imageHtml}
             <div class="wp-row wp-pronunciation-row">
                 <span>${sense.pronunciation}</span>
+                ${
+                    wordAudioUrl
+                        ? `<button class="wp-form-speak" data-audio-url="${wordAudioUrl}">🔊</button>`
+                        : ""
+                }
             </div>
             ${
                 sense.part_of_speech.toLowerCase() === "verb"
@@ -730,7 +777,8 @@ function renderFoundWordPanel(result) {
                     wordRecord,
                     result.frequencyRank,
                     result.word,
-                    result.irregularForms
+                    result.irregularForms,
+                    audioUrl
                 )
             )
             .join("");
@@ -1064,11 +1112,79 @@ async function handleWordTap(word) {
 }
 
 
+// iOS Safari: epub.js registers its own touch handlers on the content
+// iframe for swipe-to-turn-page, and on iOS that can swallow the
+// synthesized "click" a plain tap would otherwise produce -- tapping a
+// word did nothing there, even though the exact same code worked with
+// mouse clicks. Handling touchend directly (only when it looks like a
+// tap, not the start of a swipe: little movement, short duration) is
+// what actually fires reliably on iOS; the click listener stays as the
+// path for desktop/mouse input. lastTouchTapAt suppresses the
+// synthesized click most browsers still fire after touchend, so a tap
+// does not open the panel twice.
 function attachWordTapListener(contents) {
 
     const doc = contents.document;
 
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let lastTouchTapAt = 0;
+
+    doc.addEventListener(
+        "touchstart",
+        event => {
+
+            const touch = event.touches[0];
+
+            if (!touch) {
+                return;
+            }
+
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            touchStartTime = Date.now();
+
+        },
+        { passive: true }
+    );
+
+    doc.addEventListener("touchend", event => {
+
+        const touch = event.changedTouches[0];
+
+        if (!touch) {
+            return;
+        }
+
+        const distance =
+            Math.hypot(
+                touch.clientX - touchStartX,
+                touch.clientY - touchStartY
+            );
+
+        const elapsed = Date.now() - touchStartTime;
+
+        if (distance > 10 || elapsed > 500) {
+            return;
+        }
+
+        lastTouchTapAt = Date.now();
+
+        const word =
+            getWordAtPoint(doc, touch.clientX, touch.clientY);
+
+        if (word) {
+            handleWordTap(word);
+        }
+
+    });
+
     doc.addEventListener("click", event => {
+
+        if (Date.now() - lastTouchTapAt < 600) {
+            return;
+        }
 
         const word =
             getWordAtPoint(doc, event.clientX, event.clientY);
@@ -1110,9 +1226,12 @@ epubInput.addEventListener("change", async () => {
 
     rendition.hooks.content.register(attachWordTapListener);
 
+    registerReaderThemes(rendition);
+
     await rendition.display();
 
     applyReaderFontScale();
+    applyReaderTheme();
 
     emptyState.hidden = true;
     readerArea.hidden = false;
