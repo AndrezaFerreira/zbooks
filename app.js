@@ -152,41 +152,51 @@ function getEffectiveTheme() {
 // injects real CSS into each content iframe it renders, which is what
 // actually fixes contrast (toggling only the app chrome's CSS variables
 // cannot reach inside that iframe).
-function registerReaderThemes(targetRendition) {
-
-    targetRendition.themes.register("zbooks-light", {
-        "body": {
-            "background": "#ffffff !important",
-            "color": "#1a1a1a !important"
-        }
-    });
-
-    // Dark navy background with muted grayish-white text, matching a
-    // reference (Zotero's PDF dark mode) -- not pure white/pure black,
-    // which is harsher to read for long stretches.
-    targetRendition.themes.register("zbooks-dark", {
-        "body": {
-            "background": "#242832 !important",
-            "color": "#c9cdd6 !important"
-        },
-        "a": {
-            "color": "#9db4e8 !important"
-        }
-    });
-
-}
-
+//
+// One theme name, re-registered with different rules each time -- not
+// two separate themes toggled with .select(). epub.js's addStylesheetRules
+// reuses the same <style> element per theme name and only ever APPENDS
+// rules to it (insertRule), it never clears old ones; two separate theme
+// names each get their own <style> tag, and once both exist the one
+// added later always wins the cascade regardless of which one is
+// "selected" afterward -- confirmed live: dark, once toggled on, kept
+// winning even after switching back to light. Reusing one name means
+// there's only ever one stylesheet, and the newest rule (always
+// appended last) is always the one that applies.
 function applyReaderTheme() {
 
     if (!rendition) {
         return;
     }
 
+    const isDark =
+        getEffectiveTheme() === "dark";
+
+    // Dark navy background with muted grayish-white text, matching a
+    // reference (Zotero's PDF dark mode) -- not pure white/pure black,
+    // which is harsher to read for long stretches.
+    const rules =
+        isDark
+            ? {
+                "body": {
+                    "background": "#242832 !important",
+                    "color": "#c9cdd6 !important"
+                },
+                "a": {
+                    "color": "#9db4e8 !important"
+                }
+            }
+            : {
+                "body": {
+                    "background": "#ffffff !important",
+                    "color": "#1a1a1a !important"
+                }
+            };
+
     try {
 
-        rendition.themes.select(
-            getEffectiveTheme() === "dark" ? "zbooks-dark" : "zbooks-light"
-        );
+        rendition.themes.register("zbooks-reader", rules);
+        rendition.themes.select("zbooks-reader");
 
     } catch (error) {
 
@@ -1298,8 +1308,6 @@ epubInput.addEventListener("change", async () => {
     });
 
     attachWordTapListeners(rendition);
-
-    registerReaderThemes(rendition);
 
     rendition.on("relocated", location => {
         saveReadingPosition(
