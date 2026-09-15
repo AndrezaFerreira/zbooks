@@ -1086,6 +1086,8 @@ function renderFoundWordPanel(result) {
                     nextStatus
                 );
 
+                updateWordLevelAggregate(result);
+
                 renderFoundWordPanel(result);
 
             });
@@ -1497,6 +1499,188 @@ function loadReadingPosition(bookKey) {
 
 
 // ============================================================
+// SHOULD-LEARN WORD COLORING (orange, in the book text itself)
+//
+// Deliberately word-level, not sense-level: coloring every occurrence
+// of a word requires matching it against plain rendered prose, with no
+// way to know which sense the author meant in that sentence -- the
+// same context problem discussed and dropped for part-of-speech
+// coloring. A word-level "is any sense of this word marked Should
+// Learn" check sidesteps that entirely (closed lookup, no
+// disambiguation needed), the same reasoning that made irregular verb
+// forms easy to spot earlier. setSenseStatus() only ever touches one
+// specific card, so marking a card here also recomputes this word-
+// level aggregate (known beats learning beats neither, across every
+// sense ZBooks currently has loaded for that word) and saves it to the
+// same shared word_status record ZWords' own aggregate uses -- this is
+// what showed up as the "seen"/rare coloring word-level signal before,
+// now doubling as the source for text coloring too.
+// ============================================================
+
+function updateWordLevelAggregate(result) {
+
+    let aggregate = null;
+
+    for (const sense of result.senses) {
+
+        const status =
+            ZWordsSharedStatus.getSenseStatus(sense.deck, sense.sense_id);
+
+        if (status === "known") {
+            aggregate = "known";
+            break;
+        }
+
+        if (status === "learning" && aggregate !== "known") {
+            aggregate = "learning";
+        }
+
+    }
+
+    const record =
+        sharedWordStatusMap[result.key] || { word: result.key };
+
+    if (aggregate) {
+        record.explicitStatus = aggregate;
+    } else {
+        delete record.explicitStatus;
+    }
+
+    record.updatedAt = new Date().toISOString();
+    record.updatedFrom = "zbooks";
+
+    sharedWordStatusMap[result.key] = record;
+
+    ZWordsSharedStatus
+        .putWordStatusRecord(record)
+        .catch(error => {
+            console.error("Could not save word-level status:", error);
+        });
+
+    refreshShouldLearnColoring();
+
+}
+
+function getShouldLearnWords() {
+
+    const words = new Set();
+
+    for (const record of Object.values(sharedWordStatusMap)) {
+        if (record.explicitStatus === "learning" && record.word) {
+            words.add(record.word);
+        }
+    }
+
+    return words;
+
+}
+
+function buildShouldLearnRegex(words) {
+
+    const escaped =
+        [...words]
+            .filter(Boolean)
+            .map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+
+    if (!escaped.length) {
+        return null;
+    }
+
+    return new RegExp(`\\b(${escaped.join("|")})\\b`, "gi");
+
+}
+
+// Runs once per content view (registered as a content hook, same as
+// the reader theme -- survives epub.js's internal reflows the same
+// way). Walks the section's text nodes and wraps matching words in an
+// inline-colored span; text nodes that don't match anything are left
+// completely untouched.
+function colorShouldLearnWordsInContent(contents) {
+
+    const pattern = buildShouldLearnRegex(getShouldLearnWords());
+
+    if (!pattern) {
+        return;
+    }
+
+    const doc = contents.document;
+
+    const walker =
+        doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+
+    const textNodes = [];
+    let node;
+
+    while ((node = walker.nextNode())) {
+
+        if (
+            node.parentElement &&
+            node.parentElement.classList.contains("zbooks-should-learn-word")
+        ) {
+            continue;
+        }
+
+        textNodes.push(node);
+
+    }
+
+    for (const textNode of textNodes) {
+
+        const text = textNode.textContent;
+
+        pattern.lastIndex = 0;
+
+        if (!pattern.test(text)) {
+            continue;
+        }
+
+        pattern.lastIndex = 0;
+
+        const fragment = doc.createDocumentFragment();
+        let lastIndex = 0;
+        let match;
+
+        while ((match = pattern.exec(text))) {
+
+            if (match.index > lastIndex) {
+                fragment.appendChild(
+                    doc.createTextNode(text.slice(lastIndex, match.index))
+                );
+            }
+
+            const span = doc.createElement("span");
+            span.className = "zbooks-should-learn-word";
+            span.style.color = "#d9740c";
+            span.style.fontWeight = "600";
+            span.textContent = match[0];
+            fragment.appendChild(span);
+
+            lastIndex = match.index + match[0].length;
+
+        }
+
+        if (lastIndex < text.length) {
+            fragment.appendChild(doc.createTextNode(text.slice(lastIndex)));
+        }
+
+        textNode.parentNode.replaceChild(fragment, textNode);
+
+    }
+
+}
+
+function refreshShouldLearnColoring() {
+
+    if (!rendition) {
+        return;
+    }
+
+    rendition.getContents().forEach(colorShouldLearnWordsInContent);
+
+}
+
+
+// ============================================================
 // HIGHLIGHTING
 //
 // epub.js's own annotations manager (rendition.annotations) re-applies
@@ -1754,6 +1938,11 @@ epubInput.addEventListener("change", async () => {
 
     book = ePub(arrayBuffer);
 
+    // Should-Learn coloring reads sharedWordStatusMap directly (not
+    // awaited inside the content hook itself), so it needs to already
+    // be populated before the first page renders, not just by the time
+    // a word gets tapped.
+    await sharedWordStatusReady;
     await book.ready;
 
     const bookKey = getBookStorageKey(book, file);
@@ -1766,6 +1955,8 @@ epubInput.addEventListener("change", async () => {
     });
 
     attachWordTapListeners(rendition);
+
+    rendition.hooks.content.register(colorShouldLearnWordsInContent);
 
     rendition.on("relocated", location => {
         saveReadingPosition(
