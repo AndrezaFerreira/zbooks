@@ -154,6 +154,11 @@ body {
     justify-content: center;
 }
 
+.icon-button.active {
+    background: var(--zb-accent);
+    border-color: transparent;
+}
+
 /* Everything must stay on one line -- on a narrow phone there isn't
    room for the "ZBooks" wordmark alongside four controls and the Open
    EPUB button, so it's the first thing to go; the logo mark alone

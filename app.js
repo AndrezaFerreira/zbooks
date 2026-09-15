@@ -123,6 +123,9 @@ const tocList =
 const tocPanelClose =
     document.getElementById("tocPanelClose");
 
+const highlightToggleButton =
+    document.getElementById("highlightToggle");
+
 const wordPanelOverlay =
     document.getElementById("wordPanelOverlay");
 
@@ -1320,6 +1323,34 @@ async function handleWordTap(word) {
 // actually works on the device before removing the logging.
 const DEBUG_TAP = false;
 
+// Selecting text does one of two things depending on the highlight
+// toggle: normally it looks up the first selected word (same word-tap
+// flow a single word would trigger), but with highlight mode on, the
+// same selection instead marks that range yellow -- word lookup is
+// skipped in that mode since the reader is marking, not looking up.
+function handleTextSelection(text, cfiRange, selection) {
+
+    if (!text) {
+        return;
+    }
+
+    if (highlightModeActive) {
+
+        addHighlight(cfiRange);
+
+    } else {
+
+        const word = text.split(/\s+/)[0];
+        handleWordTap(word);
+
+    }
+
+    if (selection) {
+        selection.removeAllRanges();
+    }
+
+}
+
 function attachWordTapListeners(targetRendition) {
 
     if (DEBUG_TAP) {
@@ -1350,17 +1381,7 @@ function attachWordTapListeners(targetRendition) {
             logDebug(`selected: "${text}"`);
         }
 
-        if (!text) {
-            return;
-        }
-
-        const word = text.split(/\s+/)[0];
-
-        handleWordTap(word);
-
-        if (selection) {
-            selection.removeAllRanges();
-        }
+        handleTextSelection(text, cfiRange, selection);
 
     });
 
@@ -1395,17 +1416,24 @@ function attachWordTapListeners(targetRendition) {
                     logDebug(`selection settled (direct): "${text}"`);
                 }
 
-                if (!text) {
-                    return;
+                let cfiRange = null;
+
+                if (
+                    text &&
+                    selection.rangeCount > 0 &&
+                    !selection.getRangeAt(0).collapsed
+                ) {
+
+                    try {
+                        cfiRange =
+                            contents.cfiFromRange(selection.getRangeAt(0));
+                    } catch (error) {
+                        cfiRange = null;
+                    }
+
                 }
 
-                const word = text.split(/\s+/)[0];
-
-                handleWordTap(word);
-
-                if (selection) {
-                    selection.removeAllRanges();
-                }
+                handleTextSelection(text, cfiRange, selection);
 
             }, 300);
 
@@ -1466,6 +1494,120 @@ function loadReadingPosition(bookKey) {
     }
 
 }
+
+
+// ============================================================
+// HIGHLIGHTING
+//
+// epub.js's own annotations manager (rendition.annotations) re-applies
+// a highlight to its page automatically whenever that page's content
+// view gets (re)rendered -- same hooks.render mechanism as everything
+// else here that survives epub.js's internal reflows -- so adding one
+// only needs to happen once; it does not need to be reattached by hand
+// like the word-tap listeners did. Persisted per book (by the same
+// book key reading position uses) so highlights survive closing and
+// reopening the same file, restored by re-running .highlight() for
+// each saved CFI once the book is open.
+// ============================================================
+
+let highlightModeActive = false;
+let currentBookKey = null;
+
+const HIGHLIGHT_STORAGE_PREFIX = "zbooks_highlights_";
+
+const HIGHLIGHT_STYLES = {
+    "fill": "yellow",
+    "fill-opacity": "0.35"
+};
+
+function loadHighlights(bookKey) {
+
+    if (!bookKey) {
+        return [];
+    }
+
+    try {
+
+        const raw =
+            localStorage.getItem(HIGHLIGHT_STORAGE_PREFIX + bookKey);
+
+        return raw ? JSON.parse(raw) : [];
+
+    } catch (error) {
+
+        console.error("Could not load highlights:", error);
+        return [];
+
+    }
+
+}
+
+function saveHighlight(bookKey, cfiRange) {
+
+    if (!bookKey || !cfiRange) {
+        return;
+    }
+
+    try {
+
+        const highlights = loadHighlights(bookKey);
+
+        if (!highlights.includes(cfiRange)) {
+
+            highlights.push(cfiRange);
+
+            localStorage.setItem(
+                HIGHLIGHT_STORAGE_PREFIX + bookKey,
+                JSON.stringify(highlights)
+            );
+
+        }
+
+    } catch (error) {
+
+        console.error("Could not save highlight:", error);
+
+    }
+
+}
+
+function addHighlight(cfiRange) {
+
+    if (!rendition || !cfiRange) {
+        return;
+    }
+
+    try {
+
+        rendition.annotations.highlight(
+            cfiRange,
+            {},
+            () => {},
+            "zbooks-highlight",
+            HIGHLIGHT_STYLES
+        );
+
+    } catch (error) {
+
+        console.error("Could not add highlight:", error);
+        return;
+
+    }
+
+    saveHighlight(currentBookKey, cfiRange);
+
+}
+
+highlightToggleButton.addEventListener("click", () => {
+
+    highlightModeActive = !highlightModeActive;
+
+    highlightToggleButton.classList.toggle(
+        "active",
+        highlightModeActive
+    );
+
+});
 
 
 // ============================================================
@@ -1576,6 +1718,7 @@ epubInput.addEventListener("change", async () => {
     await book.ready;
 
     const bookKey = getBookStorageKey(book, file);
+    currentBookKey = bookKey;
 
     rendition = book.renderTo(viewer, {
         width: "100%",
@@ -1604,10 +1747,34 @@ epubInput.addEventListener("change", async () => {
     applyReaderFontScale();
     applyReaderTheme();
 
+    for (const cfiRange of loadHighlights(bookKey)) {
+
+        try {
+
+            rendition.annotations.highlight(
+                cfiRange,
+                {},
+                () => {},
+                "zbooks-highlight",
+                HIGHLIGHT_STYLES
+            );
+
+        } catch (error) {
+
+            console.error("Could not restore highlight:", error);
+
+        }
+
+    }
+
+    highlightModeActive = false;
+    highlightToggleButton.classList.remove("active");
+
     emptyState.hidden = true;
     readerArea.hidden = false;
     tocButton.hidden =
         !(book.navigation && book.navigation.toc && book.navigation.toc.length);
+    highlightToggleButton.hidden = false;
 
 });
 
