@@ -126,6 +126,9 @@ const tocPanelClose =
 const highlightToggleButton =
     document.getElementById("highlightToggle");
 
+const readAloudButton =
+    document.getElementById("readAloudButton");
+
 const wordPanelOverlay =
     document.getElementById("wordPanelOverlay");
 
@@ -1969,6 +1972,68 @@ highlightToggleButton.addEventListener("click", () => {
 });
 
 
+let isReadingAloud = false;
+
+function getCurrentPageText() {
+
+    if (!rendition) {
+        return "";
+    }
+
+    return rendition.getContents()
+        .map(contents => (contents.document.body.textContent || ""))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+}
+
+function stopReadingAloud() {
+
+    isReadingAloud = false;
+    readAloudButton.classList.remove("active");
+    window.speechSynthesis.cancel();
+
+}
+
+readAloudButton.addEventListener("click", () => {
+
+    if (!("speechSynthesis" in window)) {
+        return;
+    }
+
+    if (isReadingAloud) {
+        stopReadingAloud();
+        return;
+    }
+
+    const text = getCurrentPageText();
+
+    if (!text) {
+        return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+
+    utterance.onend = () => {
+        isReadingAloud = false;
+        readAloudButton.classList.remove("active");
+    };
+
+    utterance.onerror = () => {
+        isReadingAloud = false;
+        readAloudButton.classList.remove("active");
+    };
+
+    window.speechSynthesis.cancel();
+    isReadingAloud = true;
+    readAloudButton.classList.add("active");
+    window.speechSynthesis.speak(utterance);
+
+});
+
+
 // ============================================================
 // TABLE OF CONTENTS
 // ============================================================
@@ -2099,6 +2164,7 @@ epubInput.addEventListener("change", async () => {
             bookKey,
             location && location.start && location.start.cfi
         );
+        stopReadingAloud();
     });
 
     const savedPosition =
@@ -2141,6 +2207,7 @@ epubInput.addEventListener("change", async () => {
     tocButton.hidden =
         !(book.navigation && book.navigation.toc && book.navigation.toc.length);
     highlightToggleButton.hidden = false;
+    readAloudButton.hidden = !("speechSynthesis" in window);
 
 });
 
