@@ -2025,17 +2025,72 @@ function getBestEnglishVoice() {
 
 }
 
+// epub.js keeps a whole spine section's HTML in the iframe at once and
+// uses CSS columns to paginate it -- Contents.document.body.textContent
+// is therefore the WHOLE chapter, not just the page currently visible,
+// which is why read-aloud used to keep going well past what's on screen.
+// currentLocation() gives the exact CFI range of the visible page, and
+// Contents.range(cfi) turns a CFI back into a DOM Range, so a Range built
+// from the page's start/end points can be read with plain .toString().
 function getCurrentPageText() {
 
     if (!rendition) {
         return "";
     }
 
-    return rendition.getContents()
-        .map(contents => (contents.document.body.textContent || ""))
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
+    const contentsList = rendition.getContents();
+
+    const wholeSectionsFallback = () =>
+        contentsList
+            .map(contents => (contents.document.body.textContent || ""))
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+    const location = rendition.currentLocation();
+
+    if (!location || !location.start || !location.end) {
+        return wholeSectionsFallback();
+    }
+
+    const startContents =
+        contentsList.find(
+            contents => contents.sectionIndex === location.start.index
+        );
+
+    const endContents =
+        contentsList.find(
+            contents => contents.sectionIndex === location.end.index
+        );
+
+    if (!startContents || startContents !== endContents) {
+        return wholeSectionsFallback();
+    }
+
+    try {
+
+        const startRange = startContents.range(location.start.cfi);
+        const endRange = endContents.range(location.end.cfi);
+
+        if (startRange && endRange) {
+
+            const pageRange = startContents.document.createRange();
+            pageRange.setStart(startRange.startContainer, startRange.startOffset);
+            pageRange.setEnd(endRange.endContainer, endRange.endOffset);
+
+            const text = pageRange.toString().replace(/\s+/g, " ").trim();
+
+            if (text) {
+                return text;
+            }
+
+        }
+
+    } catch (error) {
+        // Fall through to the whole-section fallback below.
+    }
+
+    return wholeSectionsFallback();
 
 }
 
@@ -2066,7 +2121,7 @@ readAloudButton.addEventListener("click", () => {
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "en-US";
-    utterance.rate = 0.85;
+    utterance.rate = 0.75;
 
     const bestVoice = getBestEnglishVoice();
     if (bestVoice) {
