@@ -1284,10 +1284,19 @@ epubInput.addEventListener("change", async () => {
 
     book = ePub(arrayBuffer);
 
+    // "scrolled-doc" instead of "paginated": paginated flow's CSS-column
+    // layout comes with epub.js's built-in snap/resize-observer machinery
+    // that repaginates (destroying and recreating the content view) on
+    // things like iOS's native selection callout nudging the viewport --
+    // the debug log showed the content view being recreated every 1-3s
+    // while just trying to select a word, wiping out both the selection
+    // and any listener attached to that view before anything could fire.
+    // Scrolled flow doesn't repaginate at all, so that failure mode goes
+    // away; the tradeoff is continuous vertical scroll instead of pages.
     rendition = book.renderTo(viewer, {
         width: "100%",
         height: "100%",
-        flow: "paginated"
+        flow: "scrolled-doc"
     });
 
     attachWordTapListeners(rendition);

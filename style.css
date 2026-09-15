@@ -151,6 +151,8 @@ body {
     flex: 1;
     min-height: 0;
     background: var(--zb-surface);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .reader-nav {
