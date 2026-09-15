@@ -781,6 +781,92 @@ function computeRegularPastForm(base) {
 }
 
 
+// Same consonant-doubling reasoning as computeRegularPastForm, for -ing.
+function computeRegularIngForm(base) {
+
+    const lower = base.toLowerCase();
+
+    if (/[^aeiou]e$/i.test(lower) && !/ee$/i.test(lower)) {
+        return base.slice(0, -1) + "ing";
+    }
+
+    const vowelGroups = lower.match(/[aeiou]+/g) || [];
+
+    const isMonosyllabicCvc =
+        vowelGroups.length === 1 &&
+        /[^aeiouwxy][aeiou][^aeiouwxy]$/i.test(lower);
+
+    if (isMonosyllabicCvc) {
+        return base + base.slice(-1) + "ing";
+    }
+
+    return base + "ing";
+
+}
+
+// Covers the regular noun plural / verb 3rd-person-singular -s form.
+function computeRegularSForm(base) {
+
+    const lower = base.toLowerCase();
+
+    if (/[sxz]$|[cs]h$/i.test(lower)) {
+        return base + "es";
+    }
+
+    if (/[^aeiou]y$/i.test(lower)) {
+        return base.slice(0, -1) + "ies";
+    }
+
+    return base + "s";
+
+}
+
+
+// A "Should Learn" mark is word-level (buildLookupResult already
+// collapses inflected forms down to one lemma), but the text in the
+// book still has the reader's original inflected spelling ("marveled"),
+// not the lemma ("marvel") -- coloring only the exact lemma spelling
+// missed every conjugated/pluralized occurrence. Real irregular forms
+// (already known exactly, from the irregular verbs deck) are added
+// alongside a generic regular-inflection guess; POS is not tracked at
+// the word level, so this generates both noun- and verb-style endings
+// for every word -- a form that isn't a real word (e.g. a noun's
+// invented "-ing" form) simply never matches anything in real prose,
+// so the extra guesses are harmless.
+function getSurfaceFormsForWord(word) {
+
+    const forms = new Set([word]);
+
+    const key = ZWordsSharedStatus.normalizeSharedWord(word);
+    const irregularCards = irregularCardsByBase[key];
+
+    if (irregularCards && irregularCards.length) {
+
+        forms.add(irregularCards[0].base_form || word);
+
+        for (const card of irregularCards) {
+
+            for (const form of card.past_simple || []) {
+                forms.add(form);
+            }
+
+            for (const form of card.past_participle || []) {
+                forms.add(form);
+            }
+
+        }
+
+    }
+
+    forms.add(computeRegularSForm(word));
+    forms.add(computeRegularIngForm(word));
+    forms.add(computeRegularPastForm(word));
+
+    return forms;
+
+}
+
+
 function renderVerbFormsHtml(word, irregularForms) {
 
     if (irregularForms) {
@@ -1566,9 +1652,15 @@ function getShouldLearnWords() {
     const words = new Set();
 
     for (const record of Object.values(sharedWordStatusMap)) {
+
         if (record.explicitStatus === "learning" && record.word) {
-            words.add(record.word);
+
+            for (const form of getSurfaceFormsForWord(record.word)) {
+                words.add(form);
+            }
+
         }
+
     }
 
     return words;
