@@ -25,6 +25,14 @@ const AUDIO_MAP_URL =
 const IRREGULAR_AUDIO_MAP_URL =
     `${ZWORDS_BASE_URL}data/irregular_forms_audio_map.json`;
 
+// Small enough (~900KB, 1,284 senses) to fetch whole, unlike the words
+// deck -- no need for a prebuilt compact index. Phrasal verbs are
+// multi-word ("give up"), so they can only ever match typed search
+// (resolveWord is called with whatever text was submitted, spaces and
+// all), never a single tapped word.
+const PHRASAL_VERBS_URL =
+    `${ZWORDS_BASE_URL}data/05_cards_phrasal_verbs.json`;
+
 
 // ============================================================
 // STATE
@@ -36,6 +44,7 @@ let audioMap = {};
 let irregularAudioMap = {};
 let irregularFormToBase = {};
 let irregularCardsByBase = {};
+let phrasalVerbIndex = {};
 
 let book = null;
 let rendition = null;
@@ -347,13 +356,15 @@ async function loadLookupData() {
         wordIndexResponse,
         irregularResponse,
         audioMapResponse,
-        irregularAudioResponse
+        irregularAudioResponse,
+        phrasalVerbsResponse
     ] =
         await Promise.all([
             fetch(WORD_INDEX_URL),
             fetch(IRREGULAR_VERBS_URL),
             fetch(AUDIO_MAP_URL),
-            fetch(IRREGULAR_AUDIO_MAP_URL)
+            fetch(IRREGULAR_AUDIO_MAP_URL),
+            fetch(PHRASAL_VERBS_URL)
         ]);
 
     wordIndex = await wordIndexResponse.json();
@@ -361,6 +372,46 @@ async function loadLookupData() {
     irregularAudioMap = await irregularAudioResponse.json();
 
     const irregularCards = await irregularResponse.json();
+    const phrasalVerbCards = await phrasalVerbsResponse.json();
+
+    for (const card of phrasalVerbCards) {
+
+        const key =
+            ZWordsSharedStatus.normalizeSharedWord(card.word);
+
+        if (!key) {
+            continue;
+        }
+
+        if (!phrasalVerbIndex[key]) {
+            phrasalVerbIndex[key] = {
+                word: card.word,
+                frequency_rank: card.frequency_rank,
+                senses: []
+            };
+        }
+
+        phrasalVerbIndex[key].senses.push({
+            deck: "phrasalVerbs",
+            sense_id: card.sense_id || "",
+            pronunciation: card.pronunciation || "",
+            part_of_speech: card.part_of_speech || "",
+            definition: card.definition || "",
+            definition_pt: card.definition_pt || "",
+            example: card.example || "",
+            example_pt: card.example_pt || "",
+            image: card.image || "",
+            definition_number: card.definition_number || 1,
+            definition_total: card.definition_total || 1
+        });
+
+    }
+
+    for (const entry of Object.values(phrasalVerbIndex)) {
+        entry.senses.sort(
+            (a, b) => a.definition_number - b.definition_number
+        );
+    }
 
     for (const card of irregularCards) {
 
@@ -441,19 +492,27 @@ function buildLookupResult(resolvedKey, matchType, surfaceForm) {
 
     const wordEntry = wordIndex[resolvedKey];
     const irregularCards = irregularCardsByBase[resolvedKey] || [];
+    const phrasalVerbEntry = phrasalVerbIndex[resolvedKey];
 
-    if (!wordEntry && irregularCards.length === 0) {
+    if (
+        !wordEntry &&
+        irregularCards.length === 0 &&
+        !phrasalVerbEntry
+    ) {
         return null;
     }
 
     const senses =
         (wordEntry && wordEntry.senses && wordEntry.senses.length)
             ? wordEntry.senses
-            : irregularCards.map(irregularSenseToEntry);
+            : irregularCards.length
+                ? irregularCards.map(irregularSenseToEntry)
+                : phrasalVerbEntry.senses;
 
     const displayWord =
         (wordEntry && wordEntry.word) ||
         (irregularCards[0] && irregularCards[0].word) ||
+        (phrasalVerbEntry && phrasalVerbEntry.word) ||
         resolvedKey;
 
     const frequencyRank =
@@ -463,7 +522,12 @@ function buildLookupResult(resolvedKey, matchType, surfaceForm) {
                 irregularCards[0] &&
                 typeof irregularCards[0].frequency_rank === "number"
                     ? irregularCards[0].frequency_rank
-                    : null
+                    : (
+                        phrasalVerbEntry &&
+                        typeof phrasalVerbEntry.frequency_rank === "number"
+                            ? phrasalVerbEntry.frequency_rank
+                            : null
+                    )
             );
 
     const irregularForms =
@@ -497,7 +561,11 @@ function resolveWord(rawWord) {
         return null;
     }
 
-    if (wordIndex[key] || irregularCardsByBase[key]) {
+    if (
+        wordIndex[key] ||
+        irregularCardsByBase[key] ||
+        phrasalVerbIndex[key]
+    ) {
         return buildLookupResult(key, "exact", key);
     }
 
@@ -1382,6 +1450,9 @@ function hideSearchSuggestions() {
     wordSearchSuggestions.innerHTML = "";
 }
 
+// Searches both the words index and the phrasal verbs index -- typed
+// search can match a multi-word phrase ("give up"), unlike a tap on a
+// single word in the book, so suggestions should surface those too.
 function getWordSuggestions(prefix) {
 
     const key = ZWordsSharedStatus.normalizeSharedWord(prefix);
@@ -1392,20 +1463,25 @@ function getWordSuggestions(prefix) {
 
     const matches = [];
 
-    for (const candidateKey of Object.keys(wordIndex)) {
+    for (const [index, source] of [
+        [wordIndex, "word"],
+        [phrasalVerbIndex, "phrasalVerb"]
+    ]) {
 
-        if (candidateKey.startsWith(key)) {
-            matches.push(candidateKey);
-        }
+        for (const candidateKey of Object.keys(index)) {
 
-        if (matches.length >= 40) {
-            break;
+            if (candidateKey.startsWith(key)) {
+                matches.push({ key: candidateKey, entry: index[candidateKey], source });
+            }
+
         }
 
     }
 
     matches.sort(
-        (a, b) => a.length - b.length || a.localeCompare(b)
+        (a, b) =>
+            a.key.length - b.key.length ||
+            a.key.localeCompare(b.key)
     );
 
     return matches.slice(0, 8);
@@ -1422,9 +1498,8 @@ function renderSearchSuggestions(prefix) {
     }
 
     wordSearchSuggestions.innerHTML = suggestions
-        .map(key => {
+        .map(({ entry }) => {
 
-            const entry = wordIndex[key];
             const firstSense = (entry.senses && entry.senses[0]) || {};
 
             return `
