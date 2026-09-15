@@ -18,7 +18,7 @@
 
     <link
         rel="stylesheet"
-        href="style.css?v=5"
+        href="style.css?v=6"
     >
 </head>
 
@@ -64,9 +64,8 @@
         <section id="emptyState" class="empty-state">
 
             <p>
-                Choose an EPUB file to start reading. Press and hold
-                (or double-tap) a word -- or click it with a mouse --
-                to look it up in ZWords.
+                Choose an EPUB file to start reading. Use the search
+                bar below the page to look up any word in ZWords.
             </p>
 
         </section>
@@ -77,8 +76,29 @@
             <div id="viewer" class="viewer"></div>
 
             <div class="reader-nav">
+
                 <button id="prevPage" type="button">&larr;</button>
+
+                <form id="wordSearchForm" class="word-search-form">
+
+                    <input
+                        type="text"
+                        id="wordSearchInput"
+                        class="word-search-input"
+                        placeholder="Buscar palavra"
+                        autocomplete="off"
+                        autocapitalize="off"
+                        autocorrect="off"
+                    >
+
+                    <button type="submit" class="word-search-button">
+                        🔍
+                    </button>
+
+                </form>
+
                 <button id="nextPage" type="button">&rarr;</button>
+
             </div>
 
         </section>
@@ -112,7 +132,7 @@
     <script src="libs/jszip.min.js"></script>
     <script src="libs/epub.min.js"></script>
 
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=9"></script>
 
 </body>
 

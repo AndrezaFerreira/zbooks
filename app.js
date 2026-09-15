@@ -71,6 +71,12 @@ const prevPageButton =
 const nextPageButton =
     document.getElementById("nextPage");
 
+const wordSearchForm =
+    document.getElementById("wordSearchForm");
+
+const wordSearchInput =
+    document.getElementById("wordSearchInput");
+
 const wordPanelOverlay =
     document.getElementById("wordPanelOverlay");
 
@@ -1166,7 +1172,7 @@ async function handleWordTap(word) {
 // getSelection(). Desktop mouse keeps using plain "click".
 // TEMPORARY: DEBUG_TAP logs which stage fires, to confirm this path
 // actually works on the device before removing the logging.
-const DEBUG_TAP = true;
+const DEBUG_TAP = false;
 
 function attachWordTapListeners(targetRendition) {
 
@@ -1284,19 +1290,10 @@ epubInput.addEventListener("change", async () => {
 
     book = ePub(arrayBuffer);
 
-    // "scrolled-doc" instead of "paginated": paginated flow's CSS-column
-    // layout comes with epub.js's built-in snap/resize-observer machinery
-    // that repaginates (destroying and recreating the content view) on
-    // things like iOS's native selection callout nudging the viewport --
-    // the debug log showed the content view being recreated every 1-3s
-    // while just trying to select a word, wiping out both the selection
-    // and any listener attached to that view before anything could fire.
-    // Scrolled flow doesn't repaginate at all, so that failure mode goes
-    // away; the tradeoff is continuous vertical scroll instead of pages.
     rendition = book.renderTo(viewer, {
         width: "100%",
         height: "100%",
-        flow: "scrolled-doc"
+        flow: "paginated"
     });
 
     attachWordTapListeners(rendition);
@@ -1323,4 +1320,21 @@ nextPageButton.addEventListener("click", () => {
     if (rendition) {
         rendition.next();
     }
+});
+
+wordSearchForm.addEventListener("submit", event => {
+
+    event.preventDefault();
+
+    const word = wordSearchInput.value.trim();
+
+    if (!word) {
+        return;
+    }
+
+    handleWordTap(word);
+
+    wordSearchInput.value = "";
+    wordSearchInput.blur();
+
 });

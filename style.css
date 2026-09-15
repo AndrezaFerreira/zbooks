@@ -151,25 +151,53 @@ body {
     flex: 1;
     min-height: 0;
     background: var(--zb-surface);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
 }
 
 .reader-nav {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
     padding: 10px 16px;
     background: var(--zb-surface);
     border-top: 1px solid var(--zb-border);
 }
 
-.reader-nav button {
-    padding: 8px 20px;
+.reader-nav > button {
+    flex-shrink: 0;
+    padding: 8px 16px;
     border: 1px solid var(--zb-border);
     border-radius: 8px;
     background: var(--zb-bg);
     font-size: 16px;
     color: var(--zb-text);
+}
+
+.word-search-form {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 6px;
+}
+
+.word-search-input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--zb-border);
+    border-radius: 8px;
+    background: var(--zb-bg);
+    color: var(--zb-text);
+    font-size: 14px;
+}
+
+.word-search-button {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--zb-border);
+    border-radius: 8px;
+    background: var(--zb-accent);
+    color: #fff;
+    font-size: 15px;
 }
 
 .word-panel-overlay {
