@@ -18,7 +18,7 @@
 
     <link
         rel="stylesheet"
-        href="style.css?v=6"
+        href="style.css?v=7"
     >
 </head>
 
@@ -79,23 +79,33 @@
 
                 <button id="prevPage" type="button">&larr;</button>
 
-                <form id="wordSearchForm" class="word-search-form">
+                <div class="word-search-wrapper">
 
-                    <input
-                        type="text"
-                        id="wordSearchInput"
-                        class="word-search-input"
-                        placeholder="Buscar palavra"
-                        autocomplete="off"
-                        autocapitalize="off"
-                        autocorrect="off"
-                    >
+                    <ul
+                        id="wordSearchSuggestions"
+                        class="word-search-suggestions"
+                        hidden
+                    ></ul>
 
-                    <button type="submit" class="word-search-button">
-                        🔍
-                    </button>
+                    <form id="wordSearchForm" class="word-search-form">
 
-                </form>
+                        <input
+                            type="text"
+                            id="wordSearchInput"
+                            class="word-search-input"
+                            placeholder="Buscar palavra"
+                            autocomplete="off"
+                            autocapitalize="off"
+                            autocorrect="off"
+                        >
+
+                        <button type="submit" class="word-search-button">
+                            🔍
+                        </button>
+
+                    </form>
+
+                </div>
 
                 <button id="nextPage" type="button">&rarr;</button>
 
@@ -132,7 +142,7 @@
     <script src="libs/jszip.min.js"></script>
     <script src="libs/epub.min.js"></script>
 
-    <script src="app.js?v=9"></script>
+    <script src="app.js?v=10"></script>
 
 </body>
 

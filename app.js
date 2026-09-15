@@ -77,6 +77,9 @@ const wordSearchForm =
 const wordSearchInput =
     document.getElementById("wordSearchInput");
 
+const wordSearchSuggestions =
+    document.getElementById("wordSearchSuggestions");
+
 const wordPanelOverlay =
     document.getElementById("wordPanelOverlay");
 
@@ -900,108 +903,49 @@ function playAudioUrl(url) {
 }
 
 
-async function renderNewWordPanel(rawWord) {
+// A brand new word (not in ZWords) mirrors the found-word card layout
+// (word, then a pronunciation row carrying the audio button) instead of
+// fetching a quick definition from a third-party dictionary -- that
+// instant lookup is gone; the plan going forward is a proper external
+// dictionary integration, not an inline placeholder. Since the audio
+// button already lives up top, the single action below is "Add to
+// ZWords", which queues the word in pending_words for the ZWords
+// pipeline to turn into a real card later (image, definition, example).
+function renderNewWordPanel(rawWord) {
 
     const key =
         ZWordsSharedStatus.normalizeSharedWord(rawWord);
 
     showWordPanel(`
-        <p class="wp-word">${rawWord}</p>
+        <p class="wp-word">
+            ${rawWord}
+            <button class="wp-form-speak wp-word-speak" data-speak-word="${rawWord}">🔊</button>
+        </p>
         <span class="wp-status-badge wp-status-none">Palavra nova</span>
         <p class="wp-new-word-note">
-            Esta palavra ainda não existe no ZWords. Buscando uma
-            definição rápida em inglês...
+            Esta palavra ainda não existe no ZWords.
         </p>
-        <div id="wpDictionaryArea"></div>
         <div class="wp-actions">
-            <button class="wp-action-button" id="wpSpeakButton">
-                Ouvir pronúncia
-            </button>
-            <button class="wp-action-button active learning" id="wpWantToLearnButton">
-                Quero aprender
+            <button class="wp-action-button active learning" id="wpAddToZWordsButton">
+                Add to ZWords
             </button>
         </div>
         <div id="wpPendingNote"></div>
     `);
 
-    document
-        .getElementById("wpSpeakButton")
-        .addEventListener("click", () => {
-            speakWord(rawWord);
+    wordPanelContent
+        .querySelectorAll(".wp-form-speak")
+        .forEach(button => {
+            button.addEventListener("click", () => {
+                speakWord(button.dataset.speakWord);
+            });
         });
 
     document
-        .getElementById("wpWantToLearnButton")
+        .getElementById("wpAddToZWordsButton")
         .addEventListener("click", async () => {
             await addPendingWord(key, rawWord);
         });
-
-    try {
-
-        const response =
-            await fetch(
-                `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(key)}`
-            );
-
-        if (!response.ok) {
-            throw new Error("Not found");
-        }
-
-        const entries = await response.json();
-        const entry = entries[0];
-
-        const phonetic =
-            entry.phonetic ||
-            (entry.phonetics || [])
-                .map(item => item.text)
-                .find(Boolean) ||
-            "";
-
-        const firstMeaning =
-            (entry.meanings || [])[0];
-
-        const definition =
-            firstMeaning &&
-            firstMeaning.definitions &&
-            firstMeaning.definitions[0]
-                ? firstMeaning.definitions[0].definition
-                : "";
-
-        const partOfSpeech =
-            firstMeaning ? firstMeaning.partOfSpeech : "";
-
-        const dictionaryArea =
-            document.getElementById("wpDictionaryArea");
-
-        if (dictionaryArea) {
-            dictionaryArea.innerHTML = `
-                <div class="wp-row wp-pronunciation-row">
-                    <span>${phonetic}</span>
-                    <span>${partOfSpeech}</span>
-                </div>
-                <div class="wp-row">
-                    <span class="wp-label">Definition</span>
-                    ${definition}
-                </div>
-            `;
-        }
-
-    } catch (error) {
-
-        const dictionaryArea =
-            document.getElementById("wpDictionaryArea");
-
-        if (dictionaryArea) {
-            dictionaryArea.innerHTML = `
-                <p class="wp-new-word-note">
-                    Sem definição instantânea disponível agora
-                    (sem internet ou palavra não encontrada).
-                    Você ainda pode marcar "Quero aprender".
-                </p>
-            `;
-        }
-
-    }
 
 }
 
@@ -1332,9 +1276,125 @@ wordSearchForm.addEventListener("submit", event => {
         return;
     }
 
+    hideSearchSuggestions();
     handleWordTap(word);
 
     wordSearchInput.value = "";
     wordSearchInput.blur();
 
+});
+
+
+// Suggestions as you type: the tapped/typed word might be an inflected
+// form of something that already exists in ZWords under a different
+// spelling ("running" vs "run") -- resolveWord() already handles that
+// at submit time via the lemma candidates, but showing close prefix
+// matches from the word index while typing lets the reader notice and
+// pick the right headword before even submitting.
+function hideSearchSuggestions() {
+    wordSearchSuggestions.hidden = true;
+    wordSearchSuggestions.innerHTML = "";
+}
+
+function getWordSuggestions(prefix) {
+
+    const key = ZWordsSharedStatus.normalizeSharedWord(prefix);
+
+    if (!key) {
+        return [];
+    }
+
+    const matches = [];
+
+    for (const candidateKey of Object.keys(wordIndex)) {
+
+        if (candidateKey.startsWith(key)) {
+            matches.push(candidateKey);
+        }
+
+        if (matches.length >= 40) {
+            break;
+        }
+
+    }
+
+    matches.sort(
+        (a, b) => a.length - b.length || a.localeCompare(b)
+    );
+
+    return matches.slice(0, 8);
+
+}
+
+function renderSearchSuggestions(prefix) {
+
+    const suggestions = getWordSuggestions(prefix);
+
+    if (!suggestions.length) {
+        hideSearchSuggestions();
+        return;
+    }
+
+    wordSearchSuggestions.innerHTML = suggestions
+        .map(key => {
+
+            const entry = wordIndex[key];
+            const firstSense = (entry.senses && entry.senses[0]) || {};
+
+            return `
+                <li class="word-search-suggestion" data-word="${entry.word}">
+                    <span class="word-search-suggestion-word">${entry.word}</span>
+                    <span class="word-search-suggestion-pos">${firstSense.part_of_speech || ""}</span>
+                    <span class="word-search-suggestion-def">${firstSense.definition || ""}</span>
+                </li>
+            `;
+
+        })
+        .join("");
+
+    wordSearchSuggestions.hidden = false;
+
+    wordSearchSuggestions
+        .querySelectorAll(".word-search-suggestion")
+        .forEach(item => {
+
+            item.addEventListener("mousedown", event => {
+                // mousedown (not click) fires before the input's blur,
+                // so the tap registers before hideSearchSuggestions()
+                // on blur would otherwise remove this element first.
+                event.preventDefault();
+
+                const word = item.dataset.word;
+
+                wordSearchInput.value = "";
+                hideSearchSuggestions();
+                handleWordTap(word);
+
+            });
+
+        });
+
+}
+
+let suggestionsDebounceTimer = null;
+
+wordSearchInput.addEventListener("input", () => {
+
+    clearTimeout(suggestionsDebounceTimer);
+
+    const value = wordSearchInput.value.trim();
+
+    if (!value) {
+        hideSearchSuggestions();
+        return;
+    }
+
+    suggestionsDebounceTimer = setTimeout(() => {
+        renderSearchSuggestions(value);
+    }, 120);
+
+});
+
+wordSearchInput.addEventListener("blur", () => {
+    setTimeout(hideSearchSuggestions, 150);
 });
