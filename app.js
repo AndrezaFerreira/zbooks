@@ -14,10 +14,16 @@ const ZWORDS_BASE_URL =
     "https://andrezaferreira.github.io/zwords/";
 
 const WORD_INDEX_URL =
-    `${ZWORDS_BASE_URL}data/word_lookup_index.json`;
+    `${ZWORDS_BASE_URL}data/word_lookup_index.json?v=2`;
 
 const IRREGULAR_VERBS_URL =
     `${ZWORDS_BASE_URL}data/04_cards_irregular_verbs.json?v=1`;
+
+const AUDIO_MAP_URL =
+    `${ZWORDS_BASE_URL}data/audio_map.json`;
+
+const IRREGULAR_AUDIO_MAP_URL =
+    `${ZWORDS_BASE_URL}data/irregular_forms_audio_map.json`;
 
 
 // ============================================================
@@ -26,8 +32,10 @@ const IRREGULAR_VERBS_URL =
 
 let sharedWordStatusMap = {};
 let wordIndex = {};
+let audioMap = {};
+let irregularAudioMap = {};
 let irregularFormToBase = {};
-let irregularBaseCard = {};
+let irregularCardsByBase = {};
 
 let book = null;
 let rendition = null;
@@ -231,53 +239,28 @@ function recordWordLookup(word) {
 }
 
 
-function setExplicitStatus(word, status) {
-
-    const record =
-        sharedWordStatusMap[word] ||
-        { word };
-
-    const alreadySet =
-        record.explicitStatus === status;
-
-    if (alreadySet) {
-        delete record.explicitStatus;
-    } else {
-        record.explicitStatus = status;
-    }
-
-    record.updatedAt =
-        new Date().toISOString();
-
-    record.updatedFrom =
-        "zbooks";
-
-    sharedWordStatusMap[word] = record;
-
-    ZWordsSharedStatus
-        .putWordStatusRecord(record)
-        .catch(error => {
-            console.error("Could not save word status:", error);
-        });
-
-    return alreadySet ? null : status;
-
-}
-
-
 // ============================================================
 // ZWORDS DATASET -- LOAD (word lookup index + irregular verbs)
 // ============================================================
 
 async function loadLookupData() {
 
-    const [wordIndexResponse, irregularResponse] =
+    const [
+        wordIndexResponse,
+        irregularResponse,
+        audioMapResponse,
+        irregularAudioResponse
+    ] =
         await Promise.all([
             fetch(WORD_INDEX_URL),
-            fetch(IRREGULAR_VERBS_URL)
+            fetch(IRREGULAR_VERBS_URL),
+            fetch(AUDIO_MAP_URL),
+            fetch(IRREGULAR_AUDIO_MAP_URL)
         ]);
 
     wordIndex = await wordIndexResponse.json();
+    audioMap = await audioMapResponse.json();
+    irregularAudioMap = await irregularAudioResponse.json();
 
     const irregularCards = await irregularResponse.json();
 
@@ -290,11 +273,11 @@ async function loadLookupData() {
             continue;
         }
 
-        const existing = irregularBaseCard[baseKey];
-
-        if (!existing || card.definition_number === 1) {
-            irregularBaseCard[baseKey] = card;
+        if (!irregularCardsByBase[baseKey]) {
+            irregularCardsByBase[baseKey] = [];
         }
+
+        irregularCardsByBase[baseKey].push(card);
 
         irregularFormToBase[baseKey] = baseKey;
 
@@ -312,6 +295,13 @@ async function loadLookupData() {
 
     }
 
+    for (const cards of Object.values(irregularCardsByBase)) {
+        cards.sort(
+            (a, b) =>
+                (a.definition_number || 1) - (b.definition_number || 1)
+        );
+    }
+
 }
 
 const lookupDataReady =
@@ -323,27 +313,78 @@ const lookupDataReady =
 // ============================================================
 // WORD RESOLUTION (exact match, irregular verb form, or lemma
 // candidate) -- tries hardest to land on something that exists in
-// ZWords before giving up and treating the word as new.
+// ZWords before giving up and treating the word as new. Returns the
+// WORD's every sense (from the words deck if it has any there, else
+// from the irregular verbs deck), not just one guessed definition --
+// only the reader, not the app, can tell which sense actually matches
+// how the tapped word was used in that sentence.
 // ============================================================
 
-function cardToLookupResult(card, lemma, matchType, surfaceForm) {
+function irregularSenseToEntry(card) {
 
     return {
-        lemma,
+        deck: "irregulars",
+        sense_id: card.sense_id || "",
+        pronunciation: card.pronunciation || "",
+        part_of_speech: card.part_of_speech || "",
+        definition: card.definition || "",
+        definition_pt: card.definition_pt || "",
+        example: card.example || "",
+        example_pt: card.example_pt || "",
+        image: card.image || "",
+        definition_number: card.definition_number || 1,
+        definition_total: card.definition_total || 1
+    };
+
+}
+
+
+function buildLookupResult(resolvedKey, matchType, surfaceForm) {
+
+    const wordEntry = wordIndex[resolvedKey];
+    const irregularCards = irregularCardsByBase[resolvedKey] || [];
+
+    if (!wordEntry && irregularCards.length === 0) {
+        return null;
+    }
+
+    const senses =
+        (wordEntry && wordEntry.senses && wordEntry.senses.length)
+            ? wordEntry.senses
+            : irregularCards.map(irregularSenseToEntry);
+
+    const displayWord =
+        (wordEntry && wordEntry.word) ||
+        (irregularCards[0] && irregularCards[0].word) ||
+        resolvedKey;
+
+    const frequencyRank =
+        wordEntry && typeof wordEntry.frequency_rank === "number"
+            ? wordEntry.frequency_rank
+            : (
+                irregularCards[0] &&
+                typeof irregularCards[0].frequency_rank === "number"
+                    ? irregularCards[0].frequency_rank
+                    : null
+            );
+
+    const irregularForms =
+        irregularCards.length
+            ? {
+                base_form: irregularCards[0].base_form || resolvedKey,
+                past_simple: irregularCards[0].past_simple || [],
+                past_participle: irregularCards[0].past_participle || []
+            }
+            : null;
+
+    return {
+        key: resolvedKey,
         matchType,
         surfaceForm,
-        word: card.word,
-        pronunciation: card.pronunciation || "",
-        partOfSpeech: card.part_of_speech || "",
-        definition: card.definition || "",
-        definitionPt: card.definition_pt || "",
-        example: card.example || "",
-        examplePt: card.example_pt || "",
-        image: card.image || "",
-        frequencyRank:
-            typeof card.frequency_rank === "number"
-                ? card.frequency_rank
-                : null
+        word: displayWord,
+        frequencyRank,
+        senses,
+        irregularForms
     };
 
 }
@@ -358,32 +399,18 @@ function resolveWord(rawWord) {
         return null;
     }
 
-    if (wordIndex[key]) {
-        return cardToLookupResult(
-            wordIndex[key],
-            key,
-            "exact",
-            key
-        );
+    if (wordIndex[key] || irregularCardsByBase[key]) {
+        return buildLookupResult(key, "exact", key);
     }
 
     const irregularBase = irregularFormToBase[key];
 
     if (irregularBase) {
-
-        const card =
-            wordIndex[irregularBase] ||
-            irregularBaseCard[irregularBase];
-
-        if (card) {
-            return cardToLookupResult(
-                card,
-                irregularBase,
-                key === irregularBase ? "exact" : "inflected",
-                key
-            );
-        }
-
+        return buildLookupResult(
+            irregularBase,
+            key === irregularBase ? "exact" : "inflected",
+            key
+        );
     }
 
     const candidateLists = [
@@ -396,32 +423,14 @@ function resolveWord(rawWord) {
 
         for (const candidate of candidates) {
 
-            if (wordIndex[candidate]) {
-                return cardToLookupResult(
-                    wordIndex[candidate],
-                    candidate,
-                    "inflected",
-                    key
-                );
+            if (wordIndex[candidate] || irregularCardsByBase[candidate]) {
+                return buildLookupResult(candidate, "inflected", key);
             }
 
             const base = irregularFormToBase[candidate];
 
             if (base) {
-
-                const card =
-                    wordIndex[base] ||
-                    irregularBaseCard[base];
-
-                if (card) {
-                    return cardToLookupResult(
-                        card,
-                        base,
-                        "inflected",
-                        key
-                    );
-                }
-
+                return buildLookupResult(base, "inflected", key);
             }
 
         }
@@ -456,89 +465,261 @@ wordPanelOverlay.addEventListener("click", event => {
 });
 
 
-function renderFoundWordPanel(result) {
+function getSenseColor(sense, wordRecord, frequencyRank) {
 
-    const record = getSharedRecord(result.lemma);
+    const senseStatus =
+        ZWordsSharedStatus.getSenseStatus(sense.deck, sense.sense_id);
 
-    const color =
-        ZWordsSharedStatus.getDisplayColor(
-            record,
-            result.frequencyRank
-        );
+    if (senseStatus === "known") {
+        return "known";
+    }
+
+    if (senseStatus === "learning") {
+        return "learning";
+    }
+
+    if (
+        typeof frequencyRank === "number" &&
+        frequencyRank > ZWordsSharedStatus.RARE_RANK_THRESHOLD
+    ) {
+        return "rare";
+    }
+
+    if (wordRecord && wordRecord.lookupCount > 0) {
+        return "seen";
+    }
+
+    return "none";
+
+}
+
+
+function renderIrregularFormsHtml(irregularForms) {
+
+    if (!irregularForms) {
+        return "";
+    }
+
+    // The base form is a normal dataset word, so its audio lives in
+    // audio_map.json; only the inflected past forms live in
+    // irregular_forms_audio_map.json.
+    const renderForm = (form, audioSource) => {
+
+        const audioUrl =
+            ZWordsSharedStatus.buildAudioUrl(audioSource[form]);
+
+        return `
+            <span class="wp-form-chip">
+                ${form}
+                ${
+                    audioUrl
+                        ? `<button class="wp-form-speak" data-audio-url="${audioUrl}">🔊</button>`
+                        : ""
+                }
+            </span>
+        `;
+
+    };
+
+    return `
+        <div class="wp-row wp-irregular-forms">
+            <span class="wp-label">Verb forms</span>
+            <div class="wp-form-group">
+                <span class="wp-form-group-label">Base</span>
+                ${renderForm(irregularForms.base_form, audioMap)}
+            </div>
+            <div class="wp-form-group">
+                <span class="wp-form-group-label">Past simple</span>
+                ${
+                    irregularForms.past_simple
+                        .map(form => renderForm(form, irregularAudioMap))
+                        .join("")
+                }
+            </div>
+            <div class="wp-form-group">
+                <span class="wp-form-group-label">Past participle</span>
+                ${
+                    irregularForms.past_participle
+                        .map(form => renderForm(form, irregularAudioMap))
+                        .join("")
+                }
+            </div>
+        </div>
+    `;
+
+}
+
+
+function renderSenseHtml(sense, index, wordRecord, frequencyRank) {
+
+    const color = getSenseColor(sense, wordRecord, frequencyRank);
 
     const imageUrl =
-        ZWordsSharedStatus.buildImageUrl(result.image);
+        ZWordsSharedStatus.buildImageUrl(sense.image);
 
     const imageHtml =
         imageUrl
             ? `<img class="wp-image" src="${imageUrl}" alt="">`
             : "";
 
+    const senseStatus =
+        ZWordsSharedStatus.getSenseStatus(sense.deck, sense.sense_id);
+
+    const learningActive = senseStatus === "learning";
+    const knownActive = senseStatus === "known";
+
+    return `
+        <div class="wp-sense" data-sense-index="${index}">
+            <div class="wp-sense-header">
+                <span class="wp-pos-badge">${sense.part_of_speech}</span>
+                <span class="wp-status-badge wp-status-${color}">
+                    ${STATUS_LABELS[color]}
+                </span>
+                ${
+                    sense.definition_total > 1
+                        ? `<span class="wp-sense-count">${sense.definition_number}/${sense.definition_total}</span>`
+                        : ""
+                }
+            </div>
+            ${imageHtml}
+            <div class="wp-row wp-pronunciation-row">
+                <span>${sense.pronunciation}</span>
+            </div>
+            <div class="wp-row">
+                <span class="wp-label">Definition</span>
+                ${sense.definition}
+            </div>
+            <div class="wp-row">
+                <span class="wp-label">Tradução</span>
+                ${sense.definition_pt}
+            </div>
+            <div class="wp-row">
+                <span class="wp-label">Example</span>
+                ${sense.example}
+            </div>
+            <div class="wp-row">
+                <span class="wp-label">Exemplo</span>
+                ${sense.example_pt}
+            </div>
+            <div class="wp-actions">
+                <button
+                    class="wp-action-button learning ${learningActive ? "active learning" : ""}"
+                    data-sense-index="${index}"
+                    data-action="learning"
+                >
+                    ${learningActive ? "Quero aprender ✓" : "Quero aprender"}
+                </button>
+                <button
+                    class="wp-action-button known ${knownActive ? "active known" : ""}"
+                    data-sense-index="${index}"
+                    data-action="known"
+                >
+                    ${knownActive ? "Já sei ✓" : "Já sei"}
+                </button>
+            </div>
+        </div>
+    `;
+
+}
+
+
+function renderFoundWordPanel(result) {
+
+    const wordRecord = getSharedRecord(result.key);
+
+    const audioUrl =
+        ZWordsSharedStatus.buildAudioUrl(audioMap[result.word]);
+
     const surfaceNoteHtml =
         result.matchType === "inflected"
-            ? `<p class="wp-surface-note">Forma de "${result.lemma}" (você tocou em "${result.surfaceForm}").</p>`
+            ? `<p class="wp-surface-note">Forma de "${result.key}" (você tocou em "${result.surfaceForm}").</p>`
             : "";
 
-    const learningActive =
-        record && record.explicitStatus === "learning";
+    const sensesHtml =
+        result.senses
+            .map((sense, index) =>
+                renderSenseHtml(
+                    sense,
+                    index,
+                    wordRecord,
+                    result.frequencyRank
+                )
+            )
+            .join("");
 
-    const knownActive =
-        record && record.explicitStatus === "known";
+    const multiSenseNoteHtml =
+        result.senses.length > 1
+            ? `<p class="wp-surface-note">Esta palavra tem ${result.senses.length} definições -- marque a que combina com a frase que você leu.</p>`
+            : "";
 
     showWordPanel(`
-        <p class="wp-word">${result.word}</p>
+        <p class="wp-word">
+            ${result.word}
+            ${
+                audioUrl
+                    ? `<button class="wp-form-speak wp-word-speak" data-audio-url="${audioUrl}">🔊</button>`
+                    : ""
+            }
+        </p>
         ${surfaceNoteHtml}
-        <span class="wp-status-badge wp-status-${color}">
-            ${STATUS_LABELS[color]}
-        </span>
-        ${imageHtml}
-        <div class="wp-row wp-pronunciation-row">
-            <span>${result.pronunciation}</span>
-            <span>${result.partOfSpeech}</span>
-        </div>
-        <div class="wp-row">
-            <span class="wp-label">Definition</span>
-            ${result.definition}
-        </div>
-        <div class="wp-row">
-            <span class="wp-label">Tradução</span>
-            ${result.definitionPt}
-        </div>
-        <div class="wp-row">
-            <span class="wp-label">Example</span>
-            ${result.example}
-        </div>
-        <div class="wp-row">
-            <span class="wp-label">Exemplo</span>
-            ${result.examplePt}
-        </div>
-        <div class="wp-actions">
-            <button
-                class="wp-action-button learning ${learningActive ? "active learning" : ""}"
-                data-action="learning"
-            >
-                ${learningActive ? "Quero aprender ✓" : "Quero aprender"}
-            </button>
-            <button
-                class="wp-action-button known ${knownActive ? "active known" : ""}"
-                data-action="known"
-            >
-                ${knownActive ? "Já sei ✓" : "Já sei"}
-            </button>
-        </div>
+        ${renderIrregularFormsHtml(result.irregularForms)}
+        ${multiSenseNoteHtml}
+        ${sensesHtml}
     `);
+
+    wordPanelContent
+        .querySelectorAll(".wp-form-speak")
+        .forEach(button => {
+            button.addEventListener("click", () => {
+                playAudioUrl(button.dataset.audioUrl);
+            });
+        });
 
     wordPanelContent
         .querySelectorAll(".wp-action-button")
         .forEach(button => {
             button.addEventListener("click", () => {
-                setExplicitStatus(
-                    result.lemma,
-                    button.dataset.action
+
+                const sense =
+                    result.senses[
+                        Number(button.dataset.senseIndex)
+                    ];
+
+                const currentStatus =
+                    ZWordsSharedStatus.getSenseStatus(
+                        sense.deck,
+                        sense.sense_id
+                    );
+
+                const nextStatus =
+                    currentStatus === button.dataset.action
+                        ? "new"
+                        : button.dataset.action;
+
+                ZWordsSharedStatus.setSenseStatus(
+                    sense.deck,
+                    sense.sense_id,
+                    nextStatus
                 );
+
                 renderFoundWordPanel(result);
+
             });
+
         });
+
+}
+
+
+function playAudioUrl(url) {
+
+    if (!url) {
+        return;
+    }
+
+    const audio = new Audio(url);
+
+    audio.play().catch(() => {});
 
 }
 
@@ -781,7 +962,7 @@ async function handleWordTap(word) {
     const result = resolveWord(word);
 
     if (result) {
-        recordWordLookup(result.lemma);
+        recordWordLookup(result.key);
         renderFoundWordPanel(result);
     } else {
         renderNewWordPanel(word);
