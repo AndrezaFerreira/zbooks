@@ -275,7 +275,7 @@ themeToggleButton.addEventListener("click", () => {
 
 const FONT_SIZE_STORAGE_KEY = "zbooks_font_scale";
 const FONT_SIZE_MIN = 70;
-const FONT_SIZE_MAX = 200;
+const FONT_SIZE_MAX = 260;
 const FONT_SIZE_STEP = 10;
 
 let readerFontScale =
