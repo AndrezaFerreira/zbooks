@@ -534,12 +534,19 @@ body {
 }
 
 .wp-label {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--zb-muted);
     margin-bottom: 2px;
+}
+
+.wp-label .wp-form-speak {
+    font-size: 12px;
+    padding: 1px 7px;
 }
 
 .wp-pronunciation-row {

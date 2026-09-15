@@ -25,6 +25,15 @@ const AUDIO_MAP_URL =
 const IRREGULAR_AUDIO_MAP_URL =
     `${ZWORDS_BASE_URL}data/irregular_forms_audio_map.json`;
 
+// Keyed by the exact (trimmed, whitespace-collapsed) definition/example
+// text itself, same as ZWords' own getDefinitionAudioPath/
+// getExampleAudioPath -- there's no sense_id-keyed version of these.
+const DEFINITION_AUDIO_MAP_URL =
+    `${ZWORDS_BASE_URL}data/definition_audio_map.json`;
+
+const EXAMPLE_AUDIO_MAP_URL =
+    `${ZWORDS_BASE_URL}data/example_audio_map.json`;
+
 // Small enough (~900KB, 1,284 senses) to fetch whole, unlike the words
 // deck -- no need for a prebuilt compact index. Phrasal verbs are
 // multi-word ("give up"), so they can only ever match typed search
@@ -47,6 +56,8 @@ let sharedWordStatusMap = {};
 let wordIndex = {};
 let audioMap = {};
 let irregularAudioMap = {};
+let definitionAudioMap = {};
+let exampleAudioMap = {};
 let irregularFormToBase = {};
 let irregularCardsByBase = {};
 let irregularWordIndex = {};
@@ -432,7 +443,9 @@ async function loadLookupData() {
         audioMapResponse,
         irregularAudioResponse,
         phrasalVerbsResponse,
-        phrasesResponse
+        phrasesResponse,
+        definitionAudioResponse,
+        exampleAudioResponse
     ] =
         await Promise.all([
             fetch(WORD_INDEX_URL),
@@ -440,12 +453,16 @@ async function loadLookupData() {
             fetch(AUDIO_MAP_URL),
             fetch(IRREGULAR_AUDIO_MAP_URL),
             fetch(PHRASAL_VERBS_URL),
-            fetch(PHRASES_URL)
+            fetch(PHRASES_URL),
+            fetch(DEFINITION_AUDIO_MAP_URL),
+            fetch(EXAMPLE_AUDIO_MAP_URL)
         ]);
 
     wordIndex = await wordIndexResponse.json();
     audioMap = await audioMapResponse.json();
     irregularAudioMap = await irregularAudioResponse.json();
+    definitionAudioMap = await definitionAudioResponse.json();
+    exampleAudioMap = await exampleAudioResponse.json();
 
     const irregularCards = await irregularResponse.json();
     const phrasalVerbCards = await phrasalVerbsResponse.json();
@@ -838,9 +855,32 @@ function renderVerbFormsHtml(word, irregularForms) {
 }
 
 
+// Definition/example audio is keyed by the exact sentence text itself
+// (trimmed, whitespace-collapsed), same as ZWords' own normalizeAudioText
+// -- there's no sense_id-keyed version of these maps.
+function getTextAudioUrl(map, text) {
+
+    const normalized =
+        String(text ?? "").trim().replace(/\s+/g, " ");
+
+    if (!normalized) {
+        return null;
+    }
+
+    return ZWordsSharedStatus.buildAudioUrl(map[normalized]);
+
+}
+
+
 function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregularForms, wordAudioUrl) {
 
     const color = getSenseColor(sense, wordRecord, frequencyRank);
+
+    const definitionAudioUrl =
+        getTextAudioUrl(definitionAudioMap, sense.definition);
+
+    const exampleAudioUrl =
+        getTextAudioUrl(exampleAudioMap, sense.example);
 
     const imageUrl =
         ZWordsSharedStatus.buildImageUrl(sense.image);
@@ -884,7 +924,14 @@ function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregula
                     : ""
             }
             <div class="wp-row">
-                <span class="wp-label">Definition</span>
+                <span class="wp-label">
+                    Definition
+                    ${
+                        definitionAudioUrl
+                            ? `<button class="wp-form-speak" data-audio-url="${definitionAudioUrl}">🔊</button>`
+                            : ""
+                    }
+                </span>
                 ${sense.definition}
             </div>
             <div class="wp-row">
@@ -892,7 +939,14 @@ function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregula
                 ${sense.definition_pt}
             </div>
             <div class="wp-row">
-                <span class="wp-label">Example</span>
+                <span class="wp-label">
+                    Example
+                    ${
+                        exampleAudioUrl
+                            ? `<button class="wp-form-speak" data-audio-url="${exampleAudioUrl}">🔊</button>`
+                            : ""
+                    }
+                </span>
                 ${sense.example}
             </div>
             <div class="wp-row">
