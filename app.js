@@ -1212,6 +1212,55 @@ function attachWordTapListeners(targetRendition) {
 
     });
 
+    // Direct fallback: listen for the native selectionchange event on
+    // each content document itself, in case epub.js's own "selected"
+    // proxy (Contents -> Rendition) isn't actually the thing at fault --
+    // the on-screen selection clearly worked (handles + native menu
+    // visible), so this checks whether the browser event reaches us at
+    // all, independent of epub.js's own wiring.
+    targetRendition.hooks.content.register(contents => {
+
+        if (DEBUG_TAP) {
+            logDebug("content hook: registering selectionchange");
+        }
+
+        let debounceTimer = null;
+
+        contents.document.addEventListener("selectionchange", () => {
+
+            if (DEBUG_TAP) {
+                logDebug("selectionchange fired (direct)");
+            }
+
+            clearTimeout(debounceTimer);
+
+            debounceTimer = setTimeout(() => {
+
+                const selection = contents.window.getSelection();
+                const text = selection ? selection.toString().trim() : "";
+
+                if (DEBUG_TAP) {
+                    logDebug(`selection settled (direct): "${text}"`);
+                }
+
+                if (!text) {
+                    return;
+                }
+
+                const word = text.split(/\s+/)[0];
+
+                handleWordTap(word);
+
+                if (selection) {
+                    selection.removeAllRanges();
+                }
+
+            }, 300);
+
+        });
+
+    });
+
 }
 
 
