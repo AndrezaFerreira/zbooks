@@ -163,8 +163,15 @@ function registerReaderThemes(targetRendition) {
 
 }
 
+// TEMPORARILY DISABLED: this made the whole book render blank (still
+// under investigation) instead of just fixing dark-mode contrast.
+// Restoring a readable book takes priority; re-enable once the actual
+// cause is confirmed and fixed.
 function applyReaderTheme() {
 
+    return;
+
+    // eslint-disable-next-line no-unreachable
     if (!rendition) {
         return;
     }
