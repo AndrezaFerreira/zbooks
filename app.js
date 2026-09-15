@@ -1973,6 +1973,57 @@ highlightToggleButton.addEventListener("click", () => {
 
 
 let isReadingAloud = false;
+let cachedVoices = [];
+
+if ("speechSynthesis" in window) {
+
+    cachedVoices = window.speechSynthesis.getVoices();
+
+    window.speechSynthesis.addEventListener("voiceschanged", () => {
+        cachedVoices = window.speechSynthesis.getVoices();
+    });
+
+}
+
+// The default voice picked by most browsers/OSes for "en-US" tends to be
+// their oldest, most robotic engine. Where a nicer one is installed
+// (Google's or Microsoft's "Natural"/"Online" voices, or Apple's
+// "Enhanced"/"Premium" ones), prefer it -- checked in this order, falling
+// back to any English voice, then to the browser's own default.
+const PREFERRED_VOICE_NAME_PATTERNS = [
+    /Google US English/i,
+    /Natural/i,
+    /Online/i,
+    /Enhanced/i,
+    /Premium/i
+];
+
+function getBestEnglishVoice() {
+
+    if (!cachedVoices.length) {
+        return null;
+    }
+
+    const englishVoices =
+        cachedVoices.filter(voice => /^en/i.test(voice.lang));
+
+    if (!englishVoices.length) {
+        return null;
+    }
+
+    for (const pattern of PREFERRED_VOICE_NAME_PATTERNS) {
+        const match = englishVoices.find(voice => pattern.test(voice.name));
+        if (match) {
+            return match;
+        }
+    }
+
+    const usVoice =
+        englishVoices.find(voice => /^en-US/i.test(voice.lang));
+
+    return usVoice || englishVoices[0];
+
+}
 
 function getCurrentPageText() {
 
@@ -2015,6 +2066,12 @@ readAloudButton.addEventListener("click", () => {
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "en-US";
+    utterance.rate = 0.85;
+
+    const bestVoice = getBestEnglishVoice();
+    if (bestVoice) {
+        utterance.voice = bestVoice;
+    }
 
     utterance.onend = () => {
         isReadingAloud = false;
