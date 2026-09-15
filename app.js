@@ -1426,12 +1426,25 @@ function handleTextSelection(text, cfiRange, selection) {
 
         addHighlight(cfiRange);
 
-    } else {
+        if (selection) {
+            selection.removeAllRanges();
+        }
 
-        const word = text.split(/\s+/)[0];
-        handleWordTap(word);
+        return;
 
     }
+
+    const words = text.split(/\s+/).filter(Boolean);
+
+    if (words.length !== 1) {
+        // A multi-word selection outside highlight mode is most likely
+        // the reader selecting/copying a sentence, not asking to look
+        // up its first word -- leave the selection alone (don't clear
+        // it) so copying still works, and don't open the panel.
+        return;
+    }
+
+    handleWordTap(words[0]);
 
     if (selection) {
         selection.removeAllRanges();
