@@ -430,8 +430,8 @@ body {
     position: fixed;
     left: 8px;
     right: 8px;
-    bottom: 8px;
-    max-height: 40vh;
+    top: 60px;
+    max-height: 22vh;
     overflow-y: auto;
     background: rgba(0, 0, 0, 0.85);
     color: #7CFC00;
@@ -441,6 +441,10 @@ body {
     border-radius: 8px;
     z-index: 200;
     white-space: pre-wrap;
+    /* Read-only: must never intercept taps meant for the page below it
+       (word taps, page-turn buttons, swipes) -- it sat over the nav
+       buttons at the bottom of the screen and blocked them. */
+    pointer-events: none;
 }
 
 /* Dark palette applies automatically from system preference, unless the
