@@ -84,6 +84,9 @@ const wordSearchSuggestions =
 const wordPanelOverlay =
     document.getElementById("wordPanelOverlay");
 
+const wordPanel =
+    document.getElementById("wordPanel");
+
 const wordPanelContent =
     document.getElementById("wordPanelContent");
 
@@ -544,6 +547,10 @@ function resolveWord(rawWord) {
 function showWordPanel(html) {
     wordPanelContent.innerHTML = html;
     wordPanelOverlay.hidden = false;
+    // The browser can keep the scrollable panel's old scroll offset
+    // across an innerHTML swap, opening mid-scroll instead of at the
+    // top -- force it back to the top every time new content goes in.
+    wordPanel.scrollTop = 0;
 }
 
 function hideWordPanel() {
