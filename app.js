@@ -1146,28 +1146,27 @@ async function handleWordTap(word) {
 }
 
 
-// iOS Safari: paginated flow uses epub.js's built-in "snap" manager,
-// which runs a scroll-settle animation on EVERY touchend (even a
-// stationary tap, not just a real swipe) and that redisplays/recreates
-// the content view -- so listeners attached directly to a specific
-// contents.document (via rendition.hooks.content.register) can end up
-// orphaned on a document epub.js has already torn down by the time the
-// tap finishes, which is what made every iOS tap silently do nothing
-// even though the exact same code worked with a desktop mouse click.
-// rendition.on(...) instead binds to the Rendition object itself, which
-// persists across those internal view reloads -- epub.js proxies each
-// content document's native events up to it (Contents.addEventListeners
-// -> Rendition.passEvents), so this reaches the same underlying taps
-// through a path that survives the recreation.
-// TEMPORARY: DEBUG_TAP logs shows exactly which stage fires (or
-// doesn't) on a device where tapping isn't working, instead of
-// guessing blind. Remove once iOS tapping is confirmed working.
+// Touch coordinate math (touchstart/touchend distance+timing) turned
+// out to be a dead end on iOS: paginated flow uses epub.js's built-in
+// "snap" manager, which runs a scroll-settle animation on EVERY
+// touchend (even a stationary tap) that can redisplay/recreate the
+// content view, and confirmed via the on-screen debug log that even
+// listening at the Rendition level (rendition.on("touchend", ...),
+// which should survive that recreation) never actually fired for a
+// real finger tap on the device -- only "click" (desktop mouse) does.
+//
+// Instead of continuing to fight epub.js's internal touch handling,
+// this uses the interaction every e-reader already trains people to
+// use: press-and-hold (or double-tap) a word to select it, exactly
+// like Kindle/Apple Books. That is the browser's OWN native text
+// selection, which iOS handles natively and reliably -- epub.js
+// exposes it as a "selected" event (Contents listens for
+// "selectionchange" and, after a short debounce, emits the selected
+// CFI); the actual selected text is read via contents.window.
+// getSelection(). Desktop mouse keeps using plain "click".
+// TEMPORARY: DEBUG_TAP logs which stage fires, to confirm this path
+// actually works on the device before removing the logging.
 const DEBUG_TAP = true;
-
-let tapTouchStartX = 0;
-let tapTouchStartY = 0;
-let tapTouchStartTime = 0;
-let lastTouchTapAt = 0;
 
 function attachWordTapListeners(targetRendition) {
 
@@ -1175,87 +1174,10 @@ function attachWordTapListeners(targetRendition) {
         logDebug("attachWordTapListeners: wiring rendition.on(...)");
     }
 
-    targetRendition.on("touchstart", (event, contents) => {
-
-        const touch = event.touches && event.touches[0];
-
-        if (!touch) {
-            if (DEBUG_TAP) {
-                logDebug("touchstart: no touches[0]");
-            }
-            return;
-        }
-
-        tapTouchStartX = touch.clientX;
-        tapTouchStartY = touch.clientY;
-        tapTouchStartTime = Date.now();
-
-        if (DEBUG_TAP) {
-            logDebug(
-                `touchstart x=${touch.clientX.toFixed(0)} y=${touch.clientY.toFixed(0)}`
-            );
-        }
-
-    });
-
-    targetRendition.on("touchend", (event, contents) => {
-
-        const touch = event.changedTouches && event.changedTouches[0];
-
-        if (!touch) {
-            if (DEBUG_TAP) {
-                logDebug("touchend: no changedTouches[0]");
-            }
-            return;
-        }
-
-        const distance =
-            Math.hypot(
-                touch.clientX - tapTouchStartX,
-                touch.clientY - tapTouchStartY
-            );
-
-        const elapsed = Date.now() - tapTouchStartTime;
-
-        if (DEBUG_TAP) {
-            logDebug(
-                `touchend dist=${distance.toFixed(0)} elapsed=${elapsed}`
-            );
-        }
-
-        if (distance > 10 || elapsed > 500) {
-            if (DEBUG_TAP) {
-                logDebug("touchend: rejected as swipe/long-press");
-            }
-            return;
-        }
-
-        lastTouchTapAt = Date.now();
-
-        const word =
-            getWordAtPoint(contents.document, touch.clientX, touch.clientY);
-
-        if (DEBUG_TAP) {
-            logDebug(`word="${word}"`);
-        }
-
-        if (word) {
-            handleWordTap(word);
-        }
-
-    });
-
     targetRendition.on("click", (event, contents) => {
 
         if (DEBUG_TAP) {
             logDebug("click fired");
-        }
-
-        if (Date.now() - lastTouchTapAt < 600) {
-            if (DEBUG_TAP) {
-                logDebug("click: suppressed (recent touch tap)");
-            }
-            return;
         }
 
         const word =
@@ -1263,6 +1185,29 @@ function attachWordTapListeners(targetRendition) {
 
         if (word) {
             handleWordTap(word);
+        }
+
+    });
+
+    targetRendition.on("selected", (cfiRange, contents) => {
+
+        const selection = contents.window.getSelection();
+        const text = selection ? selection.toString().trim() : "";
+
+        if (DEBUG_TAP) {
+            logDebug(`selected: "${text}"`);
+        }
+
+        if (!text) {
+            return;
+        }
+
+        const word = text.split(/\s+/)[0];
+
+        handleWordTap(word);
+
+        if (selection) {
+            selection.removeAllRanges();
         }
 
     });
