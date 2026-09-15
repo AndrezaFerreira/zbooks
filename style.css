@@ -26,6 +26,15 @@
     box-sizing: border-box;
 }
 
+/* Author rules like ".reader-area { display: flex }" or
+   ".word-panel-overlay { display: flex }" below would otherwise beat
+   the browser's default [hidden] styling, leaving elements toggled via
+   el.hidden = true/false visible (and, for the fixed full-screen
+   overlay, silently blocking clicks on everything behind it). */
+[hidden] {
+    display: none !important;
+}
+
 body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
