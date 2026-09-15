@@ -1679,6 +1679,37 @@ function refreshShouldLearnColoring() {
 
 }
 
+// Cross-tab live sync: ZWords marking a card Should Learn writes to the
+// same shared word_status store (via its own per-card aggregate) and
+// pings this same key -- if ZWords happens to be open in another tab
+// while a book is open here, the word turns orange without needing to
+// reopen ZBooks. Reloads the whole map rather than trusting the ping's
+// payload, since the ping only carries which word changed, not the new
+// record itself.
+window.addEventListener("storage", event => {
+
+    if (event.key !== ZWordsSharedStatus.WORD_STATUS_UPDATED_KEY) {
+        return;
+    }
+
+    ZWordsSharedStatus.loadAllWordStatus()
+        .then(records => {
+
+            sharedWordStatusMap = {};
+
+            for (const record of records) {
+                sharedWordStatusMap[record.word] = record;
+            }
+
+            refreshShouldLearnColoring();
+
+        })
+        .catch(error => {
+            console.error("Could not refresh shared word status:", error);
+        });
+
+});
+
 
 // ============================================================
 // HIGHLIGHTING
