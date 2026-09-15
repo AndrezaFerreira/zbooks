@@ -40,12 +40,13 @@ let irregularCardsByBase = {};
 let book = null;
 let rendition = null;
 
+// Matches ZWords' own wording (New/Learning/Known) for the shared
+// states; "Rare word" is the one status ZWords itself doesn't have.
 const STATUS_LABELS = {
-    known: "Conhecida",
-    learning: "Aprendendo",
-    rare: "Palavra rara",
-    seen: "Já consultada",
-    none: "Sem marcação"
+    known: "Known",
+    learning: "Learning",
+    rare: "Rare word",
+    none: "New"
 };
 
 
@@ -761,7 +762,7 @@ function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregula
                 ${sense.definition}
             </div>
             <div class="wp-row">
-                <span class="wp-label">Tradução</span>
+                <span class="wp-label">Translation</span>
                 ${sense.definition_pt}
             </div>
             <div class="wp-row">
@@ -769,7 +770,7 @@ function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregula
                 ${sense.example}
             </div>
             <div class="wp-row">
-                <span class="wp-label">Exemplo</span>
+                <span class="wp-label">Example (Portuguese)</span>
                 ${sense.example_pt}
             </div>
             <div class="wp-actions">
@@ -778,14 +779,14 @@ function renderSenseHtml(sense, index, wordRecord, frequencyRank, word, irregula
                     data-sense-index="${index}"
                     data-action="learning"
                 >
-                    ${learningActive ? "Quero aprender ✓" : "Quero aprender"}
+                    ${learningActive ? "Should Learn ✓" : "Should Learn"}
                 </button>
                 <button
                     class="wp-action-button known ${knownActive ? "active known" : ""}"
                     data-sense-index="${index}"
                     data-action="known"
                 >
-                    ${knownActive ? "Já sei ✓" : "Já sei"}
+                    ${knownActive ? "Already Knew ✓" : "Already Knew"}
                 </button>
             </div>
         </div>
@@ -803,7 +804,7 @@ function renderFoundWordPanel(result) {
 
     const surfaceNoteHtml =
         result.matchType === "inflected"
-            ? `<p class="wp-surface-note">Forma de "${result.key}" (você tocou em "${result.surfaceForm}").</p>`
+            ? `<p class="wp-surface-note">Form of "${result.key}" (you tapped "${result.surfaceForm}").</p>`
             : "";
 
     const sensesHtml =
@@ -823,7 +824,7 @@ function renderFoundWordPanel(result) {
 
     const multiSenseNoteHtml =
         result.senses.length > 1
-            ? `<p class="wp-surface-note">Esta palavra tem ${result.senses.length} definições -- marque a que combina com a frase que você leu.</p>`
+            ? `<p class="wp-surface-note">This word has ${result.senses.length} definitions -- mark the one that matches what you read.</p>`
             : "";
 
     showWordPanel(`
@@ -921,9 +922,9 @@ function renderNewWordPanel(rawWord) {
             ${rawWord}
             <button class="wp-form-speak wp-word-speak" data-speak-word="${rawWord}">🔊</button>
         </p>
-        <span class="wp-status-badge wp-status-none">Palavra nova</span>
+        <span class="wp-status-badge wp-status-none">New word</span>
         <p class="wp-new-word-note">
-            Esta palavra ainda não existe no ZWords.
+            This word doesn't exist in ZWords yet.
         </p>
         <div class="wp-actions">
             <button class="wp-action-button active learning" id="wpAddToZWordsButton">
@@ -978,19 +979,19 @@ async function addPendingWord(key, displayWord) {
             source: "zbooks"
         });
 
-        showToast(`"${displayWord}" adicionada à lista de aprendizado.`);
+        showToast(`"${displayWord}" added to ZWords.`);
 
         const note = document.getElementById("wpPendingNote");
 
         if (note) {
             note.innerHTML =
-                `<p class="wp-pending-note">Salvo -- entrará no ZWords quando o card for gerado.</p>`;
+                `<p class="wp-pending-note">Saved -- will enter ZWords once the card is generated.</p>`;
         }
 
     } catch (error) {
 
         console.error("Could not save pending word:", error);
-        showToast("Não foi possível salvar agora.");
+        showToast("Could not save right now.");
 
     }
 
@@ -1215,6 +1216,58 @@ function attachWordTapListeners(targetRendition) {
 
 
 // ============================================================
+// READING POSITION (resume where you left off, per book)
+//
+// Keyed by the EPUB's own unique identifier (from its metadata, stable
+// regardless of the local filename), falling back to name+size for a
+// book that doesn't declare one. Just the current CFI in localStorage
+// -- no need for the shared IndexedDB store, this is purely a per-
+// device reading convenience, not data ZWords needs to see.
+// ============================================================
+
+const READING_POSITION_PREFIX = "zbooks_position_";
+
+function getBookStorageKey(targetBook, file) {
+
+    const identifier =
+        targetBook.packaging &&
+        targetBook.packaging.metadata &&
+        targetBook.packaging.metadata.identifier;
+
+    const key =
+        identifier ||
+        `${file.name}:${file.size}`;
+
+    return READING_POSITION_PREFIX + key;
+
+}
+
+function saveReadingPosition(bookKey, cfi) {
+
+    if (!cfi) {
+        return;
+    }
+
+    try {
+        localStorage.setItem(bookKey, cfi);
+    } catch (error) {
+        console.error("Could not save reading position:", error);
+    }
+
+}
+
+function loadReadingPosition(bookKey) {
+
+    try {
+        return localStorage.getItem(bookKey);
+    } catch (error) {
+        return null;
+    }
+
+}
+
+
+// ============================================================
 // EPUB LOADING
 // ============================================================
 
@@ -1234,6 +1287,10 @@ epubInput.addEventListener("change", async () => {
 
     book = ePub(arrayBuffer);
 
+    await book.ready;
+
+    const bookKey = getBookStorageKey(book, file);
+
     rendition = book.renderTo(viewer, {
         width: "100%",
         height: "100%",
@@ -1244,7 +1301,21 @@ epubInput.addEventListener("change", async () => {
 
     registerReaderThemes(rendition);
 
-    await rendition.display();
+    rendition.on("relocated", location => {
+        saveReadingPosition(
+            bookKey,
+            location && location.start && location.start.cfi
+        );
+    });
+
+    const savedPosition =
+        loadReadingPosition(bookKey);
+
+    if (savedPosition) {
+        await rendition.display(savedPosition);
+    } else {
+        await rendition.display();
+    }
 
     applyReaderFontScale();
     applyReaderTheme();
